@@ -1,0 +1,13 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "dotclaude",
+  "owner": {
+    "name": "Nicolas Palermo",
+    "email": "nicolas.palermo.ai@gmail.com"
+  },
+  "metadata": {
+    "description": "Plugins for a harness-agents style development process",
+    "version": "0.1.0"
+  },
+  "plugins": []
+}
