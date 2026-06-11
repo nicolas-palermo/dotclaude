@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "missions/state.schema.json",
+  "title": "Mission phase state",
+  "type": "object",
+  "required": ["missionId", "state", "workingDirectory", "createdAt", "updatedAt"],
+  "properties": {
+    "missionId": { "type": "string", "minLength": 1 },
+    "state": {
+      "enum": [
+        "planning_interview", "planning_skills_gen", "planning_approval",
+        "running", "orchestrator_turn", "scrutiny_synthesis", "scrutiny_fanout",
+        "user_testing_synthesis", "user_testing_fanout",
+        "awaiting_hitl", "paused", "completed", "failed"
+      ]
+    },
+    "workingDirectory": { "type": "string", "minLength": 1 },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "lastReviewedHandoffCount": { "type": "integer", "minimum": 0 },
+    "currentMilestone": { "type": "string" }
+  }
+}

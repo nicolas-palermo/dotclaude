@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "missions/user-testing-synthesis.schema.json",
+  "title": "User-testing milestone synthesis",
+  "type": "object",
+  "required": ["milestone", "round", "status", "assertionsSummary", "passedAssertions", "failedAssertions"],
+  "properties": {
+    "milestone": { "type": "string", "minLength": 1 },
+    "round": { "type": "integer", "minimum": 1 },
+    "status": { "enum": ["pass", "fail"] },
+    "assertionsSummary": {
+      "type": "object",
+      "required": ["total", "passed", "failed", "blocked"],
+      "properties": {
+        "total": { "type": "integer" },
+        "passed": { "type": "integer" },
+        "failed": { "type": "integer" },
+        "blocked": { "type": "integer" }
+      }
+    },
+    "passedAssertions": { "type": "array", "items": { "type": "string", "pattern": "^VAL-[A-Z]+-\\d{3,}$" } },
+    "failedAssertions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "reason"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^VAL-[A-Z]+-\\d{3,}$" },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "blockedAssertions": { "type": "array" },
+    "appliedUpdates": { "type": "array" },
+    "previousRound": { "type": ["string", "null"] },
+    "frictions": {
+      "type": "array",
+      "items": {
+        "anyOf": [
+          { "type": "string" },
+          {
+            "type": "object",
+            "required": ["description"],
+            "properties": {
+              "description": { "type": "string" },
+              "source": { "type": "string" }
+            }
+          }
+        ]
+      }
+    },
+    "override": {
+      "type": "object",
+      "required": ["justification", "deferredAssertions", "deferredTo"],
+      "properties": {
+        "justification": { "type": "string" },
+        "deferredAssertions": { "type": "array", "items": { "type": "string" } },
+        "deferredTo": { "type": "string" }
+      }
+    }
+  }
+}

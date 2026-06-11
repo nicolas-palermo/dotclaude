@@ -1,0 +1,4 @@
+{
+  "_comment": "TEMPLATE — copy the agent line into your own .claude/settings.json (project or user scope). The plugin does not auto-apply this.",
+  "agent": "missions:missions-orchestrator"
+}

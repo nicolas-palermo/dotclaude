@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "missions/flow-report.schema.json",
+  "title": "User-testing per-surface flow report",
+  "type": "object",
+  "required": ["groupId", "milestone", "testedAt", "isolation", "toolsUsed", "assertions"],
+  "properties": {
+    "groupId": { "type": "string", "minLength": 1 },
+    "milestone": { "type": "string", "minLength": 1 },
+    "testedAt": { "type": "string", "format": "date-time" },
+    "isolation": {
+      "type": "object",
+      "required": ["workingDirectory"],
+      "properties": {
+        "workingDirectory": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "toolsUsed": { "type": "array", "items": { "type": "string" } },
+    "assertions": {
+      "anyOf": [
+        {
+          "type": "object",
+          "propertyNames": { "pattern": "^VAL-[A-Z]+-\\d{3,}$" },
+          "additionalProperties": { "$ref": "#/$defs/assertionResult" }
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "status"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^VAL-[A-Z]+-\\d{3,}$" },
+              "title": { "type": "string" },
+              "status": { "enum": ["pass", "fail", "blocked", "hitl_pending"] }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "assertionResult": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": { "enum": ["pass", "fail", "blocked", "hitl_pending"] },
+        "evidence": { "type": ["string", "object"] },
+        "details": { "type": "string" },
+        "steps": { "type": "array" },
+        "issues": {}
+      }
+    }
+  }
+}

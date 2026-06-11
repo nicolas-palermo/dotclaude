@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "missions/progress-event.schema.json",
+  "title": "progress_log.jsonl entry (one JSON object per line)",
+  "type": "object",
+  "required": ["timestamp", "type"],
+  "properties": {
+    "timestamp": { "type": "string", "format": "date-time" },
+    "type": {
+      "enum": [
+        "mission_accepted", "mission_run_started",
+        "mission_paused", "mission_resumed",
+        "worker_selected_feature", "worker_started", "worker_completed",
+        "worker_failed", "worker_abnormal_stop",
+        "handoff_items_dismissed", "milestone_validation_triggered",
+        "state_transition"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "const": "mission_run_started" } } },
+      "then": { "required": ["message"], "properties": { "message": { "type": "string", "minLength": 1 } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "worker_selected_feature" } } },
+      "then": { "required": ["workerSessionId", "featureId"] }
+    },
+    {
+      "if": { "properties": { "type": { "const": "worker_started" } } },
+      "then": { "required": ["workerSessionId", "featureId"] }
+    },
+    {
+      "if": { "properties": { "type": { "const": "worker_completed" } } },
+      "then": {
+        "required": ["workerSessionId", "featureId", "successState", "returnToOrchestrator"],
+        "properties": {
+          "successState": { "enum": ["success", "failure", "partial"] },
+          "returnToOrchestrator": { "type": "boolean" },
+          "validatorsPassed": { "type": "boolean" },
+          "commitId": { "type": "string" },
+          "repoPath": { "type": "string" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "handoff_items_dismissed" } } },
+      "then": {
+        "required": ["dismissals"],
+        "properties": {
+          "dismissals": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["type", "sourceFeatureId", "summary", "justification"],
+              "properties": {
+                "type": { "enum": ["discovered_issue", "incomplete_work"] },
+                "sourceFeatureId": { "type": "string" },
+                "summary": { "type": "string" },
+                "justification": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "milestone_validation_triggered" } } },
+      "then": { "required": ["milestone", "featureId"] }
+    }
+  ]
+}

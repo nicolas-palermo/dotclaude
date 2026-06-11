@@ -9,5 +9,11 @@
     "description": "Plugins for a harness-agents style development process",
     "version": "0.1.0"
   },
-  "plugins": []
+  "plugins": [
+    {
+      "name": "missions",
+      "source": "./plugins/missions",
+      "description": "Long-running, validator-gated, fix-loop-driven multi-feature missions for Claude Code."
+    }
+  ]
 }
