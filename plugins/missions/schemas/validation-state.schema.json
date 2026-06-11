@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "missions/validation-state.schema.json",
+  "title": "Per-VAL-ID validation status",
+  "type": "object",
+  "required": ["assertions"],
+  "properties": {
+    "assertions": {
+      "type": "object",
+      "propertyNames": { "pattern": "^VAL-[A-Z]+-\\d{3,}$" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": { "enum": ["pending", "passed", "failed", "hitl_pending"] },
+          "validatedAtMilestone": { "type": "string" },
+          "note": { "type": "string" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "objective": "Build a Python CLI `fizzbuzz` that takes --from N --to M, prints lines per FizzBuzz rules, with both pytest unit tests and a subprocess integration test.",
+  "answers": {
+    "language": "Python 3, stdlib only (argparse), pytest for tests",
+    "milestones": "m1-core (pure logic + unit tests), m2-cli (CLI wiring + integration test)",
+    "features": "m1-fizzbuzz-pure, m1-pytest-suite, m2-cli-args, m2-cli-integration-test",
+    "workerRoles": "python-worker (core), cli-worker (CLI + integration)",
+    "validationDomains": "VAL-CORE-NNN for logic, VAL-CLI-NNN for CLI; ~12 assertions total; one HITL: VAL-CLI-005 manual terminal run prints exactly 15 lines for --from 1 --to 15",
+    "conventions": "src/fizzbuzz.py + tests/; no external deps; black-compatible formatting",
+    "approval": "yes"
+  }
+}

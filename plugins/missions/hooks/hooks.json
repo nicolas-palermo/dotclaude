@@ -1,0 +1,37 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          { "type": "command", "if": "Write(*/missions/*/handoffs/*.json)", "command": "${CLAUDE_PLUGIN_ROOT}/bin/validate-handoff.sh", "timeout": 15 },
+          { "type": "command", "if": "Write(*/missions/*/validation-state.json)", "command": "${CLAUDE_PLUGIN_ROOT}/bin/validate-file.sh validation-state.schema.json", "timeout": 10 },
+          { "type": "command", "if": "Write(*/missions/*/features.json)", "command": "${CLAUDE_PLUGIN_ROOT}/bin/validate-file.sh features.schema.json", "timeout": 10 },
+          { "type": "command", "if": "Write(*/missions/*/state.json)", "command": "${CLAUDE_PLUGIN_ROOT}/bin/validate-file.sh state.schema.json", "timeout": 10 },
+          { "type": "command", "if": "Write(*/scrutiny/plan.json)", "command": "${CLAUDE_PLUGIN_ROOT}/bin/validate-file.sh scrutiny-plan.schema.json", "timeout": 10 },
+          { "type": "command", "if": "Write(*/scrutiny/reviews/*.json)", "command": "${CLAUDE_PLUGIN_ROOT}/bin/validate-file.sh review.schema.json", "timeout": 10 },
+          { "type": "command", "if": "Write(*/user-testing/flows/*.json)", "command": "${CLAUDE_PLUGIN_ROOT}/bin/validate-file.sh flow-report.schema.json", "timeout": 10 },
+          { "type": "command", "if": "Write(*/scrutiny/synthesis.json)", "command": "${CLAUDE_PLUGIN_ROOT}/bin/on-synthesis-written.sh", "timeout": 30 },
+          { "type": "command", "if": "Write(*/user-testing/synthesis.json)", "command": "${CLAUDE_PLUGIN_ROOT}/bin/on-synthesis-written.sh", "timeout": 30 }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          { "type": "command", "if": "Edit(*/missions/*/validation-state.json)", "command": "${CLAUDE_PLUGIN_ROOT}/bin/validate-file.sh validation-state.schema.json", "timeout": 10 },
+          { "type": "command", "if": "Edit(*/missions/*/features.json)", "command": "${CLAUDE_PLUGIN_ROOT}/bin/validate-file.sh features.schema.json", "timeout": 10 }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      { "matcher": "missions:missions-impl-worker", "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/bin/on-impl-worker-stop.sh", "timeout": 20 }] },
+      { "matcher": "missions:missions-scrutiny-validator", "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/bin/on-scrutiny-validator-stop.sh", "timeout": 20 }] },
+      { "matcher": "missions:missions-scrutiny-feature-reviewer", "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/bin/on-scrutiny-reviewer-stop.sh", "timeout": 30 }] },
+      { "matcher": "missions:missions-flow-validator", "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/bin/on-flow-validator-stop.sh", "timeout": 20 }] }
+    ],
+    "SessionStart": [
+      { "matcher": "resume", "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/bin/on-session-resume.sh", "timeout": 5 }] },
+      { "matcher": "compact", "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/bin/on-session-resume.sh", "timeout": 5 }] }
+    ]
+  }
+}

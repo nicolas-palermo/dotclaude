@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "missions/scrutiny-synthesis.schema.json",
+  "title": "Scrutiny milestone synthesis",
+  "type": "object",
+  "required": ["milestone", "round", "status", "validatorsRun", "reviewsSummary", "blockingIssues", "appliedUpdates", "rejectedObservations"],
+  "properties": {
+    "milestone": { "type": "string", "minLength": 1 },
+    "round": { "type": "integer", "minimum": 1 },
+    "status": { "enum": ["pass", "fail"] },
+    "validatorsRun": {
+      "type": "object",
+      "required": ["test", "typecheck", "lint"],
+      "additionalProperties": {
+        "type": "object",
+        "required": ["passed", "command", "exitCode"],
+        "properties": {
+          "passed": { "type": "boolean" },
+          "command": { "type": "string" },
+          "exitCode": { "type": "integer" },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "reviewsSummary": {
+      "type": "object",
+      "required": ["total", "passed", "failed", "failedFeatures"],
+      "properties": {
+        "total": { "type": "integer" },
+        "passed": { "type": "integer" },
+        "failed": { "type": "integer" },
+        "failedFeatures": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "blockingIssues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["featureId", "description"],
+        "properties": {
+          "featureId": { "type": "string" },
+          "severity": { "const": "blocking" },
+          "description": { "type": "string" },
+          "file": { "type": "string" },
+          "line": { "type": "integer" },
+          "suggestedFix": { "type": "string" }
+        }
+      }
+    },
+    "nonBlockingIssues": { "type": "array" },
+    "appliedUpdates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["target", "description"],
+        "properties": {
+          "target": { "type": "string" },
+          "description": { "type": "string" },
+          "source": { "type": "string" },
+          "sourceFeature": { "type": "string" }
+        }
+      }
+    },
+    "suggestedGuidanceUpdates": { "type": "array" },
+    "rejectedObservations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["observation", "reason"],
+        "properties": {
+          "observation": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "previousRound": { "type": ["string", "null"] },
+    "round2FixSummary": {
+      "type": "object",
+      "required": ["fixFeature", "originalFailedFeature", "blockingIssueAddressed", "allPriorBlockingIssuesResolved"],
+      "properties": {
+        "fixFeature": { "type": "string" },
+        "originalFailedFeature": { "type": "string" },
+        "blockingIssueAddressed": { "type": "string" },
+        "additionalFixesInSameFeature": { "type": "array", "items": { "type": "string" } },
+        "allPriorBlockingIssuesResolved": { "type": "boolean" }
+      }
+    }
+  }
+}

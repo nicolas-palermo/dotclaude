@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "missions/features.schema.json",
+  "title": "Mission feature DAG",
+  "type": "object",
+  "required": ["features"],
+  "properties": {
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "description", "milestone", "status"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+          "description": { "type": "string", "minLength": 1 },
+          "skillName": { "type": "string" },
+          "milestone": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["pending", "in_progress", "completed", "failed"] },
+          "fulfills": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^VAL-[A-Z]+-\\d{3,}$" }
+          },
+          "preconditions": { "type": "array", "items": { "type": "string" } },
+          "expectedBehavior": { "type": "array", "items": { "type": "string" } },
+          "workerSessionIds": { "type": "array", "items": { "type": "string" } },
+          "currentWorkerSessionId": { "type": ["string", "null"] },
+          "completedWorkerSessionId": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

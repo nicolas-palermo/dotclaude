@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "missions/handoff.schema.json",
+  "title": "Worker/validator handoff",
+  "type": "object",
+  "required": ["timestamp", "workerSessionId", "featureId", "milestone", "successState", "returnToOrchestrator", "handoff"],
+  "properties": {
+    "timestamp": { "type": "string", "format": "date-time" },
+    "workerSessionId": { "type": "string", "minLength": 8 },
+    "featureId": { "type": "string", "minLength": 1 },
+    "milestone": { "type": "string", "minLength": 1 },
+    "successState": { "enum": ["success", "failure", "partial"] },
+    "returnToOrchestrator": { "type": "boolean" },
+    "commitId": { "type": "string" },
+    "repoPath": { "type": "string" },
+    "exitCode": { "type": "integer" },
+    "validatorsPassed": { "type": "boolean" },
+    "handoff": {
+      "type": "object",
+      "required": ["salientSummary", "whatWasImplemented", "whatWasLeftUndone", "verification", "tests", "discoveredIssues"],
+      "properties": {
+        "salientSummary": { "type": "string", "minLength": 1 },
+        "whatWasImplemented": { "type": "string" },
+        "whatWasLeftUndone": { "type": "string" },
+        "verification": {
+          "type": "object",
+          "required": ["commandsRun"],
+          "properties": {
+            "commandsRun": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["command", "exitCode", "observation"],
+                "properties": {
+                  "command": { "type": "string" },
+                  "exitCode": { "type": "integer" },
+                  "observation": { "type": "string" }
+                }
+              }
+            },
+            "interactiveChecks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["action", "observed"],
+                "properties": {
+                  "action": { "type": "string" },
+                  "observed": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "tests": {
+          "type": "object",
+          "required": ["added", "coverage"],
+          "properties": {
+            "added": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["file", "cases"],
+                "properties": {
+                  "file": { "type": "string" },
+                  "cases": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": ["name"],
+                      "properties": {
+                        "name": { "type": "string" },
+                        "verifies": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "coverage": { "type": "string" }
+          }
+        },
+        "discoveredIssues": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["severity", "description"],
+            "properties": {
+              "severity": { "enum": ["blocking", "non_blocking"] },
+              "description": { "type": "string" },
+              "suggestedFix": { "type": "string" }
+            }
+          }
+        },
+        "skillFeedback": {
+          "type": "object",
+          "properties": {
+            "followedProcedure": { "type": "boolean" },
+            "deviations": { "type": "array" },
+            "suggestedChanges": { "type": "array" }
+          }
+        }
+      }
+    }
+  }
+}

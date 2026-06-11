@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "missions/review.schema.json",
+  "title": "Scrutiny per-feature review",
+  "type": "object",
+  "required": ["featureId", "reviewedAt", "status", "codeReview", "summary"],
+  "properties": {
+    "featureId": { "type": "string", "minLength": 1 },
+    "reviewedAt": { "type": "string", "format": "date-time" },
+    "commitId": { "type": ["string", "null"] },
+    "repoPath": { "type": ["string", "null"] },
+    "transcriptSkeletonReviewed": { "type": "boolean" },
+    "diffReviewed": { "type": "boolean" },
+    "status": { "enum": ["pass", "fail"] },
+    "codeReview": {
+      "type": "object",
+      "required": ["summary", "issues"],
+      "properties": {
+        "summary": { "type": "string", "minLength": 1 },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["severity", "description"],
+            "properties": {
+              "file": { "type": ["string", "null"] },
+              "line": { "type": ["integer", "null"] },
+              "severity": { "enum": ["blocking", "non_blocking"] },
+              "description": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "sharedStateObservations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["area", "observation", "evidence"],
+        "properties": {
+          "area": { "enum": ["knowledge", "conventions", "skills"] },
+          "observation": { "type": "string" },
+          "evidence": { "type": "string" }
+        }
+      }
+    },
+    "addressesFailureFrom": { "type": ["string", "null"] },
+    "summary": { "type": "string", "minLength": 1 }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "missions",
+  "description": "Long-running, validator-gated, fix-loop-driven multi-feature missions for Claude Code. Reverse-engineered from Factory.ai droid's /missions.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Nicolas Palermo",
+    "email": "nicolas.palermo.ai@gmail.com"
+  }
+}
