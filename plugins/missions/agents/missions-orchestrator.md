@@ -1,8 +1,8 @@
 ---
 name: missions-orchestrator
 description: Mission orchestrator — runs the milestone-gated state machine for long-running, validator-gated multi-feature missions. Set as your session agent to drive an active mission.
-model: opus
-effort: high
+model: fable
+effort: medium
 maxTurns: 300
 memory: project
 tools: Agent(missions:missions-impl-worker, missions:missions-scrutiny-validator, missions:missions-scrutiny-feature-reviewer, missions:missions-flow-validator), Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
