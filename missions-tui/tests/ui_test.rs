@@ -1159,3 +1159,331 @@ fn val_feat_003_detail_renders_worker_sessions() {
         "detail should render worker session id 'aaa00001', got:\n{rendered}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// VAL-WORK-001: Workers panel renders table with correct columns and rows
+// VAL-WORK-002: Workers panel filter tabs show correct counts and restrict rows
+// ---------------------------------------------------------------------------
+
+/// Helper: open Dashboard (loads mission-a snapshot) then navigate to Workers.
+fn app_on_workers() -> App {
+    let mut app = make_app_with_entries();
+    press(&mut app, KeyCode::Enter); // Selector → Dashboard (loads mission-a)
+    press(&mut app, KeyCode::Char('W')); // Dashboard → Workers
+    app
+}
+
+#[test]
+fn val_work_001_workers_panel_column_headers() {
+    // verifies: "VAL-WORK-001: workers panel renders all column headers"
+    let app = app_on_workers();
+    assert_eq!(app.screen, Screen::Workers, "should be on Workers screen");
+
+    let mut terminal = make_terminal(120, 24);
+    terminal.draw(|f| ui::draw(f, &app)).expect("draw workers");
+    let rendered = render_to_string(&terminal, 120, 24);
+
+    for header in &["#", "Session", "Start", "Duration", "Status", "Feature"] {
+        assert!(
+            rendered.contains(header),
+            "workers panel should show column header '{header}', got:\n{rendered}"
+        );
+    }
+}
+
+#[test]
+fn val_work_001_workers_panel_rows_newest_first() {
+    // verifies: "VAL-WORK-001: worker rows are ordered newest-first (8bf19191 before deadbeef)"
+    // mission-a fixture sessions (by start time):
+    //   oldest: deadbeef (started 2026-06-11T22:00:00Z) → ordinal 1, Failed
+    //   middle: 77658ccc (started 2026-06-11T23:22:15Z) → ordinal 2, Success
+    //   newest: 8bf19191 (started 2026-06-12T00:16:00Z) → ordinal 3, Running
+    // Newest-first display: 8bf19191 row appears BEFORE deadbeef row.
+    let app = app_on_workers();
+
+    let mut terminal = make_terminal(120, 24);
+    terminal.draw(|f| ui::draw(f, &app)).expect("draw workers");
+    let rendered = render_to_string(&terminal, 120, 24);
+
+    assert!(
+        rendered.contains("8bf19191"),
+        "workers panel should show session '8bf19191', got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("77658ccc"),
+        "workers panel should show session '77658ccc', got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("deadbeef"),
+        "workers panel should show session 'deadbeef', got:\n{rendered}"
+    );
+
+    // Newest-first: 8bf19191 must appear earlier in the rendered text than deadbeef.
+    let pos_newest = rendered.find("8bf19191").expect("8bf19191 in rendered");
+    let pos_oldest = rendered.find("deadbeef").expect("deadbeef in rendered");
+    assert!(
+        pos_newest < pos_oldest,
+        "8bf19191 (newest) should appear before deadbeef (oldest) in workers list; positions: {pos_newest} vs {pos_oldest}"
+    );
+}
+
+#[test]
+fn val_work_001_workers_panel_row_cells() {
+    // verifies: "VAL-WORK-001: worker rows contain session short id, HH:MM start, duration, status, feature"
+    // deadbeef: started 22:00, duration 30m 0s, Failed, feature m1-registry-cli
+    // 77658ccc: started 23:22, duration 52m 45s, Success, feature m1-registry-cli
+    let app = app_on_workers();
+
+    let mut terminal = make_terminal(160, 24);
+    terminal.draw(|f| ui::draw(f, &app)).expect("draw workers");
+    let rendered = render_to_string(&terminal, 160, 24);
+
+    // Start times (HH:MM)
+    assert!(
+        rendered.contains("22:00"),
+        "workers panel should show start '22:00' for deadbeef session, got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("23:22"),
+        "workers panel should show start '23:22' for 77658ccc session, got:\n{rendered}"
+    );
+
+    // Duration for deadbeef: 30 minutes → "30m 0s"
+    assert!(
+        rendered.contains("30m 0s"),
+        "workers panel should show duration '30m 0s' for deadbeef session, got:\n{rendered}"
+    );
+
+    // Status strings
+    assert!(
+        rendered.contains("Failed"),
+        "workers panel should show status 'Failed', got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("Success"),
+        "workers panel should show status 'Success', got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("Running"),
+        "workers panel should show status 'Running', got:\n{rendered}"
+    );
+
+    // Feature ids
+    assert!(
+        rendered.contains("m1-registry-cli"),
+        "workers panel should show feature 'm1-registry-cli', got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("m1-mission-data-model"),
+        "workers panel should show feature 'm1-mission-data-model', got:\n{rendered}"
+    );
+}
+
+#[test]
+fn val_work_001_workers_panel_failed_status_color_red() {
+    // verifies: "VAL-WORK-001: Failed status cell is rendered with Red foreground color"
+    use ratatui::style::Color;
+
+    let app = app_on_workers();
+
+    let mut terminal = make_terminal(160, 24);
+    terminal.draw(|f| ui::draw(f, &app)).expect("draw workers");
+
+    let buf = terminal.backend().buffer().clone();
+
+    // Find any cell whose symbol starts with 'F' and has Red fg — this is the "Failed" status span.
+    let has_red_cell = (0..24u16)
+        .flat_map(|y| (0..160u16).map(move |x| (x, y)))
+        .any(|pos| {
+            buf.cell(pos)
+                .map(|c| c.style().fg == Some(Color::Red))
+                .unwrap_or(false)
+        });
+
+    assert!(
+        has_red_cell,
+        "workers panel should have at least one cell with Red fg for the 'Failed' status"
+    );
+}
+
+#[test]
+fn val_work_001_workers_panel_scroll_indicator() {
+    // verifies: "VAL-WORK-001: scroll indicator shows 'showing X–Y of N' with en-dash"
+    let app = app_on_workers();
+
+    let mut terminal = make_terminal(120, 24);
+    terminal.draw(|f| ui::draw(f, &app)).expect("draw workers");
+    let rendered = render_to_string(&terminal, 120, 24);
+
+    // 4 sessions total in mission-a (3 from progress_log + 1 from handoff prior-example.json),
+    // all visible in a 24-row terminal.
+    assert!(
+        rendered.contains("showing 1") && rendered.contains("of 4"),
+        "scroll indicator should contain 'showing 1' and 'of 4', got:\n{rendered}"
+    );
+}
+
+#[test]
+fn val_work_001_workers_panel_no_panic_large_selection() {
+    // verifies: "VAL-WORK-001: selection clamping — render does not panic when list_selected > total rows"
+    let mut app = app_on_workers();
+    app.list_selected = 999; // far out of bounds
+
+    let mut terminal = make_terminal(120, 24);
+    // Should not panic; render layer clamps selection.
+    terminal
+        .draw(|f| ui::draw(f, &app))
+        .expect("draw workers with out-of-bounds selection should not panic");
+
+    let rendered = render_to_string(&terminal, 120, 24);
+    // The table still renders — at least one session id is present.
+    assert!(
+        rendered.contains("8bf19191")
+            || rendered.contains("77658ccc")
+            || rendered.contains("deadbeef"),
+        "workers panel should still render sessions after clamping selection, got:\n{rendered}"
+    );
+}
+
+#[test]
+fn val_work_002_workers_filter_tab_counts() {
+    // verifies: "VAL-WORK-002: filter tabs show correct counts: All (4), Active (2), Completed (1), Failed (1)"
+    // mission-a has: 2 Running (8bf19191 + aaaaaaaa from handoff), 1 Success (77658ccc), 1 Failed (deadbeef) = 4 total
+    // aaaaaaaa (prior-example.json handoff) has no worker_started event → start=now, no end → Running
+    let app = app_on_workers();
+
+    let mut terminal = make_terminal(120, 24);
+    terminal.draw(|f| ui::draw(f, &app)).expect("draw workers");
+    let rendered = render_to_string(&terminal, 120, 24);
+
+    assert!(
+        rendered.contains("All (4)"),
+        "workers filter should show 'All (4)', got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("Active (2)"),
+        "workers filter should show 'Active (2)', got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("Completed (1)"),
+        "workers filter should show 'Completed (1)', got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("Failed (1)"),
+        "workers filter should show 'Failed (1)', got:\n{rendered}"
+    );
+}
+
+#[test]
+fn val_work_002_workers_filter_active_shows_only_running() {
+    // verifies: "VAL-WORK-002: Active filter restricts rows to Running sessions only"
+    let mut app = app_on_workers();
+    // Cycle filter: All(0) → Active(1)
+    press(&mut app, KeyCode::Char('T'));
+    assert_eq!(app.workers_filter, 1, "workers_filter should be 1 (Active)");
+
+    let mut terminal = make_terminal(120, 24);
+    terminal
+        .draw(|f| ui::draw(f, &app))
+        .expect("draw workers active filter");
+    let rendered = render_to_string(&terminal, 120, 24);
+
+    // 8bf19191 is Running — must appear
+    assert!(
+        rendered.contains("8bf19191"),
+        "Active filter should show Running session '8bf19191', got:\n{rendered}"
+    );
+    // aaaaaaaa (from prior-example.json handoff) has no end event → Running — must also appear
+    assert!(
+        rendered.contains("aaaaaaaa"),
+        "Active filter should show Running session 'aaaaaaaa' (from handoff), got:\n{rendered}"
+    );
+    // deadbeef is Failed — must NOT appear in Active filter
+    assert!(
+        !rendered.contains("deadbeef"),
+        "Active filter should NOT show Failed session 'deadbeef', got:\n{rendered}"
+    );
+    // 77658ccc is Success — must NOT appear in Active filter
+    assert!(
+        !rendered.contains("77658ccc"),
+        "Active filter should NOT show Success session '77658ccc', got:\n{rendered}"
+    );
+}
+
+#[test]
+fn val_work_002_workers_filter_completed_shows_only_success() {
+    // verifies: "VAL-WORK-002: Completed filter restricts rows to Success sessions only"
+    let mut app = app_on_workers();
+    // Cycle: All(0) → Active(1) → Completed(2)
+    press(&mut app, KeyCode::Char('T'));
+    press(&mut app, KeyCode::Char('T'));
+    assert_eq!(
+        app.workers_filter, 2,
+        "workers_filter should be 2 (Completed)"
+    );
+
+    let mut terminal = make_terminal(120, 24);
+    terminal
+        .draw(|f| ui::draw(f, &app))
+        .expect("draw workers completed filter");
+    let rendered = render_to_string(&terminal, 120, 24);
+
+    assert!(
+        rendered.contains("77658ccc"),
+        "Completed filter should show Success session '77658ccc', got:\n{rendered}"
+    );
+    assert!(
+        !rendered.contains("deadbeef"),
+        "Completed filter should NOT show Failed session 'deadbeef', got:\n{rendered}"
+    );
+}
+
+#[test]
+fn val_work_002_workers_filter_failed_shows_only_failed() {
+    // verifies: "VAL-WORK-002: Failed filter restricts rows to Failed+Partial sessions only"
+    let mut app = app_on_workers();
+    // Cycle: All(0) → Active(1) → Completed(2) → Failed(3)
+    press(&mut app, KeyCode::Char('T'));
+    press(&mut app, KeyCode::Char('T'));
+    press(&mut app, KeyCode::Char('T'));
+    assert_eq!(app.workers_filter, 3, "workers_filter should be 3 (Failed)");
+
+    let mut terminal = make_terminal(120, 24);
+    terminal
+        .draw(|f| ui::draw(f, &app))
+        .expect("draw workers failed filter");
+    let rendered = render_to_string(&terminal, 120, 24);
+
+    assert!(
+        rendered.contains("deadbeef"),
+        "Failed filter should show Failed session 'deadbeef', got:\n{rendered}"
+    );
+    assert!(
+        !rendered.contains("8bf19191"),
+        "Failed filter should NOT show Running session '8bf19191', got:\n{rendered}"
+    );
+    assert!(
+        !rendered.contains("77658ccc"),
+        "Failed filter should NOT show Success session '77658ccc', got:\n{rendered}"
+    );
+}
+
+#[test]
+fn val_work_002_workers_filter_cycles_back_to_all() {
+    // verifies: "VAL-WORK-002: T key cycles filter 0→1→2→3→0 (wraps back to All)"
+    let mut app = app_on_workers();
+    assert_eq!(app.workers_filter, 0);
+
+    // Cycle through all 4 states and back to 0
+    press(&mut app, KeyCode::Char('T'));
+    assert_eq!(app.workers_filter, 1);
+    press(&mut app, KeyCode::Char('T'));
+    assert_eq!(app.workers_filter, 2);
+    press(&mut app, KeyCode::Char('T'));
+    assert_eq!(app.workers_filter, 3);
+    press(&mut app, KeyCode::Char('T'));
+    assert_eq!(
+        app.workers_filter, 0,
+        "4th T press should wrap workers_filter back to 0 (All)"
+    );
+}

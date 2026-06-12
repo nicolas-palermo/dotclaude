@@ -6,3 +6,5 @@
 {"timestamp":"2026-06-12T00:15:30Z","type":"mission_run_started","message":"m1-registry-cli done. Starting m1-mission-data-model."}
 {"timestamp":"2026-06-12T00:15:45Z","type":"worker_selected_feature","workerSessionId":"8bf19191-54bc-4fef-a079-53b33706cf7b","featureId":"m1-mission-data-model"}
 {"timestamp":"2026-06-12T00:16:00Z","type":"worker_started","workerSessionId":"8bf19191-54bc-4fef-a079-53b33706cf7b","featureId":"m1-mission-data-model"}
+{"timestamp":"2026-06-11T22:00:00Z","type":"worker_started","workerSessionId":"deadbeef-0000-0000-0000-000000000001","featureId":"m1-registry-cli"}
+{"timestamp":"2026-06-11T22:30:00Z","type":"worker_failed","workerSessionId":"deadbeef-0000-0000-0000-000000000001","featureId":"m1-registry-cli","successState":"failure"}

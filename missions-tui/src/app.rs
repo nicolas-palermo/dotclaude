@@ -1,6 +1,8 @@
+use crate::data::derive::{derive_worker_sessions, WorkerStatus};
 use crate::data::loader::MissionSnapshot;
 use crate::data::model::Feature;
 use crate::registry::{self, RepoEntry};
+use chrono::Utc;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::path::PathBuf;
 
@@ -72,6 +74,8 @@ pub struct App {
     pub scroll_offset: usize,
     /// Active filter tab in the features panel (0=All, 1=Pending, 2=InProgress, 3=Completed, 4=Cancelled).
     pub features_filter: usize,
+    /// Active filter tab in the workers panel (0=All, 1=Active, 2=Completed, 3=Failed).
+    pub workers_filter: usize,
 }
 
 impl App {
@@ -91,6 +95,7 @@ impl App {
             list_selected: 0,
             scroll_offset: 0,
             features_filter: 0,
+            workers_filter: 0,
         }
     }
 
@@ -106,6 +111,7 @@ impl App {
             list_selected: 0,
             scroll_offset: 0,
             features_filter: 0,
+            workers_filter: 0,
         }
     }
 
@@ -280,23 +286,40 @@ impl App {
                 true
             }
 
-            // G — jump to bottom (features list only; others rely on snapshot len)
+            // G — jump to bottom (features and workers lists)
             KeyCode::Char('G') => {
                 if let Some(snap) = &self.snapshot {
-                    if self.screen == Screen::Features {
-                        let filtered = filter_features(&snap.features, self.features_filter);
-                        self.list_selected = filtered.len().saturating_sub(1);
+                    match self.screen {
+                        Screen::Features => {
+                            let filtered = filter_features(&snap.features, self.features_filter);
+                            self.list_selected = filtered.len().saturating_sub(1);
+                        }
+                        Screen::Workers => {
+                            let now = Utc::now();
+                            let all = derive_worker_sessions(snap, now);
+                            let filtered = filter_workers(&all, self.workers_filter);
+                            self.list_selected = filtered.len().saturating_sub(1);
+                        }
+                        _ => {}
                     }
                 }
                 true
             }
 
-            // T — cycle the active filter tab in the features panel
+            // T — cycle the active filter tab in the features or workers panel
             KeyCode::Char('T') => {
-                if self.screen == Screen::Features {
-                    self.features_filter = (self.features_filter + 1) % FEATURES_FILTER_COUNT;
-                    self.list_selected = 0;
-                    self.scroll_offset = 0;
+                match self.screen {
+                    Screen::Features => {
+                        self.features_filter = (self.features_filter + 1) % FEATURES_FILTER_COUNT;
+                        self.list_selected = 0;
+                        self.scroll_offset = 0;
+                    }
+                    Screen::Workers => {
+                        self.workers_filter = (self.workers_filter + 1) % WORKERS_FILTER_COUNT;
+                        self.list_selected = 0;
+                        self.scroll_offset = 0;
+                    }
+                    _ => {}
                 }
                 true
             }
@@ -305,6 +328,9 @@ impl App {
         }
     }
 }
+
+/// Filter tab count for the workers panel: All / Active / Completed / Failed.
+pub const WORKERS_FILTER_COUNT: usize = 4;
 
 /// Filter tab labels for the features panel.
 pub const FILTER_LABELS: [&str; FEATURES_FILTER_COUNT] =
@@ -325,5 +351,32 @@ pub fn filter_features(features: &[Feature], filter: usize) -> Vec<&Feature> {
     match FILTER_STATUSES.get(filter).copied().flatten() {
         None => features.iter().collect(),
         Some(status) => features.iter().filter(|f| f.status == status).collect(),
+    }
+}
+
+/// Worker filter tab labels: All / Active / Completed / Failed.
+pub const WORKERS_FILTER_LABELS: [&str; WORKERS_FILTER_COUNT] =
+    ["All", "Active", "Completed", "Failed"];
+
+/// Filter worker sessions by the given tab index.
+/// 0=All, 1=Active (Running), 2=Completed (Success), 3=Failed (Failed+Partial)
+pub fn filter_workers(
+    sessions: &[crate::data::derive::WorkerSession],
+    filter: usize,
+) -> Vec<&crate::data::derive::WorkerSession> {
+    match filter {
+        1 => sessions
+            .iter()
+            .filter(|s| s.status == WorkerStatus::Running)
+            .collect(),
+        2 => sessions
+            .iter()
+            .filter(|s| s.status == WorkerStatus::Success)
+            .collect(),
+        3 => sessions
+            .iter()
+            .filter(|s| s.status == WorkerStatus::Failed || s.status == WorkerStatus::Partial)
+            .collect(),
+        _ => sessions.iter().collect(), // 0 = All
     }
 }
