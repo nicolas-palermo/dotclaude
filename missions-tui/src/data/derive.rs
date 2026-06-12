@@ -13,6 +13,8 @@ pub struct MissionSummary {
     pub completed_features: usize,
     /// Feature currently `in_progress`, if any.
     pub active_feature: Option<Feature>,
+    /// The `currentWorkerSessionId` of the active in_progress feature, if any.
+    pub active_worker_session_id: Option<String>,
     /// Elapsed time since `createdAt` (computed with injectable `now`).
     pub elapsed_secs: Option<i64>,
 }
@@ -32,6 +34,10 @@ impl MissionSummary {
             .find(|f| f.status == "in_progress")
             .cloned();
 
+        let active_worker_session_id = active
+            .as_ref()
+            .and_then(|f| f.current_worker_session_id.clone());
+
         let elapsed = snap
             .state
             .created_at
@@ -44,6 +50,7 @@ impl MissionSummary {
             total_features: total,
             completed_features: completed,
             active_feature: active,
+            active_worker_session_id,
             elapsed_secs: elapsed,
         }
     }

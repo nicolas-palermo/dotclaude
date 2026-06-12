@@ -337,6 +337,289 @@ fn val_data_001_derived_worker_sessions() {
 }
 
 // ---------------------------------------------------------------------------
+// VAL-DATA-003: Worker session derivation from progress events + handoffs
+// ---------------------------------------------------------------------------
+
+#[test]
+fn val_data_003_sessions_have_correct_status() {
+    // verifies: "VAL-DATA-003: derive_worker_sessions maps progress events to Running/Success status"
+    let snap = MissionSnapshot::load(&mission_a_dir());
+    let now = chrono::DateTime::parse_from_rfc3339("2026-06-12T02:00:00Z")
+        .unwrap()
+        .with_timezone(&Utc);
+    let sessions = derive::derive_worker_sessions(&snap, now);
+
+    // Completed session (77658ccc) must have Success status (enriched by handoff)
+    let completed = sessions
+        .iter()
+        .find(|s| s.session_id == "77658ccc-e4f3-4b4d-b734-b75e99c7236c")
+        .expect("completed worker session 77658ccc must be present");
+    assert_eq!(
+        completed.status,
+        derive::WorkerStatus::Success,
+        "77658ccc: handoff successState=success should yield WorkerStatus::Success"
+    );
+
+    // Still-running session (8bf19191) must have Running status (no end event)
+    let running = sessions
+        .iter()
+        .find(|s| s.session_id == "8bf19191-54bc-4fef-a079-53b33706cf7b")
+        .expect("running worker session 8bf19191 must be present");
+    assert_eq!(
+        running.status,
+        derive::WorkerStatus::Running,
+        "8bf19191: no worker_completed event should yield WorkerStatus::Running"
+    );
+}
+
+#[test]
+fn val_data_003_sessions_have_correct_feature_ids() {
+    // verifies: "VAL-DATA-003: each WorkerSession carries the featureId it was assigned to"
+    let snap = MissionSnapshot::load(&mission_a_dir());
+    let now = chrono::DateTime::parse_from_rfc3339("2026-06-12T02:00:00Z")
+        .unwrap()
+        .with_timezone(&Utc);
+    let sessions = derive::derive_worker_sessions(&snap, now);
+
+    let completed = sessions
+        .iter()
+        .find(|s| s.session_id == "77658ccc-e4f3-4b4d-b734-b75e99c7236c")
+        .unwrap();
+    assert_eq!(
+        completed.feature_id.as_deref(),
+        Some("m1-registry-cli"),
+        "completed session must reference m1-registry-cli"
+    );
+
+    let running = sessions
+        .iter()
+        .find(|s| s.session_id == "8bf19191-54bc-4fef-a079-53b33706cf7b")
+        .unwrap();
+    assert_eq!(
+        running.feature_id.as_deref(),
+        Some("m1-mission-data-model"),
+        "running session must reference m1-mission-data-model"
+    );
+}
+
+#[test]
+fn val_data_003_sessions_have_1based_ordinals_sorted_by_start() {
+    // verifies: "VAL-DATA-003: WorkerSessions are sorted by start time and assigned 1-based ordinals"
+    let snap = MissionSnapshot::load(&mission_a_dir());
+    let now = chrono::DateTime::parse_from_rfc3339("2026-06-12T02:00:00Z")
+        .unwrap()
+        .with_timezone(&Utc);
+    let sessions = derive::derive_worker_sessions(&snap, now);
+
+    assert!(
+        sessions.len() >= 2,
+        "expected at least 2 sessions for ordinal test"
+    );
+
+    // Ordinals must be 1-based and strictly increasing
+    for (idx, ws) in sessions.iter().enumerate() {
+        assert_eq!(
+            ws.ordinal,
+            idx + 1,
+            "session at index {} should have ordinal {}, got {}",
+            idx,
+            idx + 1,
+            ws.ordinal
+        );
+    }
+
+    // Sessions must be sorted by start time
+    for pair in sessions.windows(2) {
+        assert!(
+            pair[0].start <= pair[1].start,
+            "sessions must be in ascending start-time order: {:?} > {:?}",
+            pair[0].start,
+            pair[1].start
+        );
+    }
+
+    // Completed session started before the still-running one (from fixture timestamps)
+    let completed_ord = sessions
+        .iter()
+        .find(|s| s.session_id == "77658ccc-e4f3-4b4d-b734-b75e99c7236c")
+        .unwrap()
+        .ordinal;
+    let running_ord = sessions
+        .iter()
+        .find(|s| s.session_id == "8bf19191-54bc-4fef-a079-53b33706cf7b")
+        .unwrap()
+        .ordinal;
+    assert!(
+        completed_ord < running_ord,
+        "completed session (ordinal {completed_ord}) should precede running (ordinal {running_ord})"
+    );
+}
+
+#[test]
+fn val_data_003_running_session_has_positive_duration() {
+    // verifies: "VAL-DATA-003: Running WorkerSession duration_secs uses injectable now for determinism"
+    let snap = MissionSnapshot::load(&mission_a_dir());
+    // now is 2026-06-12T02:00:00Z; worker started at 2026-06-12T00:16:00Z → 6240s
+    let now = chrono::DateTime::parse_from_rfc3339("2026-06-12T02:00:00Z")
+        .unwrap()
+        .with_timezone(&Utc);
+    let sessions = derive::derive_worker_sessions(&snap, now);
+
+    let running = sessions
+        .iter()
+        .find(|s| s.session_id == "8bf19191-54bc-4fef-a079-53b33706cf7b")
+        .expect("running session must be present");
+
+    let dur = running
+        .duration_secs
+        .expect("running session must have duration_secs");
+    // start = 00:16:00, now = 02:00:00 → 104 min = 6240s exactly
+    assert_eq!(
+        dur, 6240,
+        "running session duration should be 6240s (now - start), got {dur}"
+    );
+}
+
+#[test]
+fn val_data_003_completed_session_duration_is_end_minus_start() {
+    // verifies: "VAL-DATA-003: Completed WorkerSession duration_secs = end timestamp - start timestamp"
+    let snap = MissionSnapshot::load(&mission_a_dir());
+    let now = chrono::DateTime::parse_from_rfc3339("2026-06-12T02:00:00Z")
+        .unwrap()
+        .with_timezone(&Utc);
+    let sessions = derive::derive_worker_sessions(&snap, now);
+
+    let completed = sessions
+        .iter()
+        .find(|s| s.session_id == "77658ccc-e4f3-4b4d-b734-b75e99c7236c")
+        .expect("completed session must be present");
+
+    let dur = completed
+        .duration_secs
+        .expect("completed session must have duration_secs");
+    // worker_started at 23:22:15, worker_completed at 00:15:00 next day → 3165s
+    assert_eq!(
+        dur, 3165,
+        "completed session duration should be 3165s (end - start), got {dur}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// VAL-DATA-004: MissionSummary derived counts, elapsed time, active feature
+// ---------------------------------------------------------------------------
+
+#[test]
+fn val_data_004_summary_counts_match_feature_statuses() {
+    // verifies: "VAL-DATA-004: MissionSummary.completed_features and total_features match feature statuses"
+    let snap = MissionSnapshot::load(&mission_a_dir());
+    let now = chrono::DateTime::parse_from_rfc3339("2026-06-12T02:00:00Z")
+        .unwrap()
+        .with_timezone(&Utc);
+    let summary = derive::MissionSummary::from_snapshot(&snap, now);
+
+    // fixture has: m1-registry-cli (completed), m1-mission-data-model (in_progress),
+    // m1-derived-views (in_progress), m2-tui-shell-dashboard (pending) — 4 total, 1 completed
+    assert_eq!(
+        summary.total_features,
+        snap.features.len(),
+        "total_features must equal number of features in snapshot"
+    );
+    let expected_completed = snap
+        .features
+        .iter()
+        .filter(|f| f.status == "completed")
+        .count();
+    assert_eq!(
+        summary.completed_features, expected_completed,
+        "completed_features must count features with status=completed"
+    );
+    assert!(
+        summary.completed_features >= 1,
+        "at least 1 feature must be completed (m1-registry-cli)"
+    );
+    assert!(
+        summary.total_features > summary.completed_features,
+        "total must exceed completed (some features are in_progress or pending)"
+    );
+}
+
+#[test]
+fn val_data_004_summary_active_feature_is_first_in_progress() {
+    // verifies: "VAL-DATA-004: MissionSummary.active_feature is the first in_progress feature"
+    let snap = MissionSnapshot::load(&mission_a_dir());
+    let now = chrono::DateTime::parse_from_rfc3339("2026-06-12T02:00:00Z")
+        .unwrap()
+        .with_timezone(&Utc);
+    let summary = derive::MissionSummary::from_snapshot(&snap, now);
+
+    let active = summary
+        .active_feature
+        .expect("active_feature must be Some (fixture has an in_progress feature)");
+    assert_eq!(
+        active.status, "in_progress",
+        "active_feature.status must be in_progress"
+    );
+    // m1-mission-data-model appears first in features.json with in_progress status
+    assert_eq!(
+        active.id, "m1-mission-data-model",
+        "active_feature.id should be m1-mission-data-model (first in_progress in fixture)"
+    );
+}
+
+#[test]
+fn val_data_004_summary_active_worker_session_id() {
+    // verifies: "VAL-DATA-004: MissionSummary.active_worker_session_id matches the active feature's currentWorkerSessionId"
+    let snap = MissionSnapshot::load(&mission_a_dir());
+    let now = chrono::DateTime::parse_from_rfc3339("2026-06-12T02:00:00Z")
+        .unwrap()
+        .with_timezone(&Utc);
+    let summary = derive::MissionSummary::from_snapshot(&snap, now);
+
+    assert_eq!(
+        summary.active_worker_session_id.as_deref(),
+        Some("8bf19191-54bc-4fef-a079-53b33706cf7b"),
+        "active_worker_session_id must match currentWorkerSessionId of the active feature"
+    );
+}
+
+#[test]
+fn val_data_004_summary_elapsed_secs_is_deterministic() {
+    // verifies: "VAL-DATA-004: MissionSummary.elapsed_secs is deterministic when now is injected"
+    let snap = MissionSnapshot::load(&mission_a_dir());
+    // createdAt = 2026-06-11T23:21:33Z, now = 2026-06-12T02:00:00Z → 9507s
+    let now = chrono::DateTime::parse_from_rfc3339("2026-06-12T02:00:00Z")
+        .unwrap()
+        .with_timezone(&Utc);
+    let summary = derive::MissionSummary::from_snapshot(&snap, now);
+
+    let elapsed = summary
+        .elapsed_secs
+        .expect("elapsed_secs must be Some (createdAt is set in fixture)");
+    assert_eq!(
+        elapsed, 9507,
+        "elapsed_secs should be 9507 (02:00:00 - 23:21:33), got {elapsed}"
+    );
+}
+
+#[test]
+fn val_data_004_summary_state_and_milestone_match_snapshot() {
+    // verifies: "VAL-DATA-004: MissionSummary state and milestone fields match the loaded MissionState"
+    let snap = MissionSnapshot::load(&mission_a_dir());
+    let now = chrono::DateTime::parse_from_rfc3339("2026-06-12T02:00:00Z")
+        .unwrap()
+        .with_timezone(&Utc);
+    let summary = derive::MissionSummary::from_snapshot(&snap, now);
+
+    assert_eq!(summary.mission_id, snap.state.mission_id);
+    assert_eq!(summary.state, snap.state.state);
+    assert_eq!(
+        summary.milestone.as_deref(),
+        snap.state.current_milestone.as_deref(),
+        "summary.milestone must mirror state.current_milestone"
+    );
+}
+
+// ---------------------------------------------------------------------------
 // VAL-DATA-002: Degraded inputs — empty dir
 // ---------------------------------------------------------------------------
 
