@@ -17,7 +17,7 @@ const SCROLL_INDICATOR_HEIGHT: u16 = 1;
 
 static WORKERS_HINTS: &[Hint] = &[
     Hint {
-        key: "T",
+        key: "Tab",
         label: "filter",
     },
     Hint {

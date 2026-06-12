@@ -181,8 +181,8 @@ impl App {
                 true
             }
 
-            // F — go to features panel (from Dashboard, Workers, or same)
-            KeyCode::Char('F') => {
+            // F/f — go to features panel (from Dashboard, Workers, or same)
+            KeyCode::Char('F') | KeyCode::Char('f') => {
                 match &self.screen {
                     Screen::Dashboard
                     | Screen::Features
@@ -197,8 +197,8 @@ impl App {
                 true
             }
 
-            // W — go to workers panel (from Dashboard, Features, or same)
-            KeyCode::Char('W') => {
+            // W/w — go to workers panel (from Dashboard, Features, or same)
+            KeyCode::Char('W') | KeyCode::Char('w') => {
                 match &self.screen {
                     Screen::Dashboard
                     | Screen::Features
@@ -306,8 +306,8 @@ impl App {
                 true
             }
 
-            // T — cycle the active filter tab in the features or workers panel
-            KeyCode::Char('T') => {
+            // Tab — cycle the active filter tab in the features or workers panel
+            KeyCode::Tab => {
                 match self.screen {
                     Screen::Features => {
                         self.features_filter = (self.features_filter + 1) % FEATURES_FILTER_COUNT;

@@ -347,6 +347,34 @@ fn val_tui_002_w_is_noop_from_selector() {
 }
 
 #[test]
+fn val_tui_002_lowercase_f_opens_features_from_dashboard() {
+    // verifies: "VAL-TUI-002: lowercase f navigates from Dashboard to Features (case-insensitive)"
+    let mut app = app_on_dashboard();
+    assert_eq!(app.screen, Screen::Dashboard);
+
+    press(&mut app, KeyCode::Char('f'));
+    assert_eq!(
+        app.screen,
+        Screen::Features,
+        "lowercase f should open Features from Dashboard"
+    );
+}
+
+#[test]
+fn val_tui_002_lowercase_w_opens_workers_from_dashboard() {
+    // verifies: "VAL-TUI-002: lowercase w navigates from Dashboard to Workers (case-insensitive)"
+    let mut app = app_on_dashboard();
+    assert_eq!(app.screen, Screen::Dashboard);
+
+    press(&mut app, KeyCode::Char('w'));
+    assert_eq!(
+        app.screen,
+        Screen::Workers,
+        "lowercase w should open Workers from Dashboard"
+    );
+}
+
+#[test]
 fn val_tui_002_esc_from_feature_detail_returns_to_features() {
     // verifies: "VAL-TUI-002: Esc from FeatureDetail walks back to Features"
     let mut app = app_on_dashboard();
@@ -796,33 +824,33 @@ fn val_feat_001_filter_tabs_show_counts() {
 
 #[test]
 fn val_feat_001_t_key_cycles_filter() {
-    // verifies: "VAL-FEAT-001: T key cycles the active filter index"
+    // verifies: "VAL-FEAT-001: Tab key cycles the active filter index"
     let mut app = app_on_features_many();
 
     // Initially filter is 0 (All)
     assert_eq!(app.features_filter, 0, "initial filter should be 0 (All)");
 
-    // Press T -> filter 1 (Pending)
-    press(&mut app, KeyCode::Char('T'));
+    // Press Tab -> filter 1 (Pending)
+    press(&mut app, KeyCode::Tab);
     assert_eq!(
         app.features_filter, 1,
-        "T should advance filter to 1 (Pending)"
+        "Tab should advance filter to 1 (Pending)"
     );
 
-    // Press T -> filter 2 (In Progress)
-    press(&mut app, KeyCode::Char('T'));
+    // Press Tab -> filter 2 (In Progress)
+    press(&mut app, KeyCode::Tab);
     assert_eq!(
         app.features_filter, 2,
-        "T should advance filter to 2 (In Progress)"
+        "Tab should advance filter to 2 (In Progress)"
     );
 
-    // Press T four more times: 3, 4, then wrap to 0
-    press(&mut app, KeyCode::Char('T'));
+    // Press Tab four more times: 3, 4, then wrap to 0
+    press(&mut app, KeyCode::Tab);
     assert_eq!(app.features_filter, 3, "filter should be 3 (Completed)");
-    press(&mut app, KeyCode::Char('T'));
+    press(&mut app, KeyCode::Tab);
     assert_eq!(app.features_filter, 4, "filter should be 4 (Cancelled)");
-    press(&mut app, KeyCode::Char('T'));
-    assert_eq!(app.features_filter, 0, "T should wrap back to 0 (All)");
+    press(&mut app, KeyCode::Tab);
+    assert_eq!(app.features_filter, 0, "Tab should wrap back to 0 (All)");
 }
 
 #[test]
@@ -836,9 +864,9 @@ fn val_feat_001_t_resets_selection_and_rows_restricted() {
     }
     assert_eq!(app.list_selected, 5);
 
-    // T should reset selection
-    press(&mut app, KeyCode::Char('T')); // now Pending (filter index 1)
-    assert_eq!(app.list_selected, 0, "T should reset list_selected to 0");
+    // Tab should reset selection
+    press(&mut app, KeyCode::Tab); // now Pending (filter index 1)
+    assert_eq!(app.list_selected, 0, "Tab should reset list_selected to 0");
     assert_eq!(app.features_filter, 1);
 
     // Render and verify only pending rows are visible
@@ -1379,7 +1407,7 @@ fn val_work_002_workers_filter_active_shows_only_running() {
     // verifies: "VAL-WORK-002: Active filter restricts rows to Running sessions only"
     let mut app = app_on_workers();
     // Cycle filter: All(0) → Active(1)
-    press(&mut app, KeyCode::Char('T'));
+    press(&mut app, KeyCode::Tab);
     assert_eq!(app.workers_filter, 1, "workers_filter should be 1 (Active)");
 
     let mut terminal = make_terminal(120, 24);
@@ -1415,8 +1443,8 @@ fn val_work_002_workers_filter_completed_shows_only_success() {
     // verifies: "VAL-WORK-002: Completed filter restricts rows to Success sessions only"
     let mut app = app_on_workers();
     // Cycle: All(0) → Active(1) → Completed(2)
-    press(&mut app, KeyCode::Char('T'));
-    press(&mut app, KeyCode::Char('T'));
+    press(&mut app, KeyCode::Tab);
+    press(&mut app, KeyCode::Tab);
     assert_eq!(
         app.workers_filter, 2,
         "workers_filter should be 2 (Completed)"
@@ -1443,9 +1471,9 @@ fn val_work_002_workers_filter_failed_shows_only_failed() {
     // verifies: "VAL-WORK-002: Failed filter restricts rows to Failed+Partial sessions only"
     let mut app = app_on_workers();
     // Cycle: All(0) → Active(1) → Completed(2) → Failed(3)
-    press(&mut app, KeyCode::Char('T'));
-    press(&mut app, KeyCode::Char('T'));
-    press(&mut app, KeyCode::Char('T'));
+    press(&mut app, KeyCode::Tab);
+    press(&mut app, KeyCode::Tab);
+    press(&mut app, KeyCode::Tab);
     assert_eq!(app.workers_filter, 3, "workers_filter should be 3 (Failed)");
 
     let mut terminal = make_terminal(120, 24);
@@ -1470,20 +1498,20 @@ fn val_work_002_workers_filter_failed_shows_only_failed() {
 
 #[test]
 fn val_work_002_workers_filter_cycles_back_to_all() {
-    // verifies: "VAL-WORK-002: T key cycles filter 0→1→2→3→0 (wraps back to All)"
+    // verifies: "VAL-WORK-002: Tab key cycles filter 0→1→2→3→0 (wraps back to All)"
     let mut app = app_on_workers();
     assert_eq!(app.workers_filter, 0);
 
     // Cycle through all 4 states and back to 0
-    press(&mut app, KeyCode::Char('T'));
+    press(&mut app, KeyCode::Tab);
     assert_eq!(app.workers_filter, 1);
-    press(&mut app, KeyCode::Char('T'));
+    press(&mut app, KeyCode::Tab);
     assert_eq!(app.workers_filter, 2);
-    press(&mut app, KeyCode::Char('T'));
+    press(&mut app, KeyCode::Tab);
     assert_eq!(app.workers_filter, 3);
-    press(&mut app, KeyCode::Char('T'));
+    press(&mut app, KeyCode::Tab);
     assert_eq!(
         app.workers_filter, 0,
-        "4th T press should wrap workers_filter back to 0 (All)"
+        "4th Tab press should wrap workers_filter back to 0 (All)"
     );
 }
