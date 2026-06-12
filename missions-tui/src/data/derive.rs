@@ -144,11 +144,33 @@ pub fn derive_worker_sessions(snap: &MissionSnapshot, now: DateTime<Utc>) -> Vec
         }
     }
 
-    // Build sessions and sort by start time.
-    let mut sessions: Vec<(DateTime<Utc>, WorkerSession)> = map
+    // Build sessions, computing a deterministic sort key that does NOT depend on `now`.
+    //
+    // Bug fix (VAL-DATA-003, VAL-WORK-001): the old code used `acc.start.unwrap_or(now)`
+    // as the sort key, so sessions without a `worker_started` event would move in the
+    // sorted order on every tick as `now` advances. Additionally, sessions with equal
+    // start times would retain the non-deterministic `HashMap` iteration order because
+    // `sort_by_key` is stable but each call rebuilds the map with a fresh random seed.
+    //
+    // Fix: separate the *display* start (uses `now` as fallback for live duration) from
+    // the *sort key* (uses `DateTime::<Utc>::MIN_UTC` as a fixed sentinel for unknown
+    // starts) and break ties by `session_id` (lexicographic, deterministic).
+    struct SessionWithKey {
+        sort_key: (DateTime<Utc>, String),
+        session: WorkerSession,
+    }
+
+    let mut sessions: Vec<SessionWithKey> = map
         .into_iter()
         .map(|(sid, acc)| {
-            let start = acc.start.unwrap_or(now);
+            // Sort key: use MIN_UTC sentinel for unknown start so unknown-start sessions
+            // consistently sort to the beginning (before any real timestamp).
+            let sort_start = acc.start.unwrap_or(DateTime::<Utc>::MIN_UTC);
+
+            // Display start: for running sessions with unknown start, fall back to `now`
+            // so the duration counter still ticks. For all others, use the known start.
+            let display_start = acc.start.unwrap_or(now);
+
             let status = match acc.end {
                 None => WorkerStatus::Running,
                 Some(_) => match acc.success_state.as_deref() {
@@ -159,31 +181,32 @@ pub fn derive_worker_sessions(snap: &MissionSnapshot, now: DateTime<Utc>) -> Vec
                 },
             };
             let duration_secs = match &status {
-                WorkerStatus::Running => Some((now - start).num_seconds()),
-                _ => acc.end.map(|end| (end - start).num_seconds()),
+                WorkerStatus::Running => Some((now - display_start).num_seconds()),
+                _ => acc.end.map(|end| (end - display_start).num_seconds()),
             };
-            (
-                start,
-                WorkerSession {
+            SessionWithKey {
+                sort_key: (sort_start, sid.clone()),
+                session: WorkerSession {
                     ordinal: 0, // assigned below
                     session_id: sid,
                     feature_id: acc.feature_id,
-                    start,
+                    start: display_start,
                     duration_secs,
                     status,
                 },
-            )
+            }
         })
         .collect();
 
-    sessions.sort_by_key(|(start, _)| *start);
+    // Deterministic sort: primary = start time (MIN_UTC for unknown), secondary = session_id.
+    sessions.sort_by(|a, b| a.sort_key.cmp(&b.sort_key));
 
     sessions
         .into_iter()
         .enumerate()
-        .map(|(i, (_, mut ws))| {
-            ws.ordinal = i + 1;
-            ws
+        .map(|(i, mut sk)| {
+            sk.session.ordinal = i + 1;
+            sk.session
         })
         .collect()
 }

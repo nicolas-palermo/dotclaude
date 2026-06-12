@@ -2,7 +2,10 @@
 ///
 /// VAL-DATA-001: Realistic fixtures parse into typed models with correct field values.
 /// VAL-DATA-002: Missing/corrupt files yield empty defaults + warnings, never a panic.
+/// VAL-DATA-003: Worker session derivation is deterministic across ticks.
+/// VAL-WORK-001: Workers panel ordering is stable (newest-first display requires stable sort).
 use chrono::Utc;
+use missions_tui::data::model::ProgressEvent;
 use missions_tui::data::{derive, loader::MissionSnapshot};
 use std::path::PathBuf;
 
@@ -428,11 +431,21 @@ fn val_data_003_sessions_have_1based_ordinals_sorted_by_start() {
         );
     }
 
-    // Sessions must be sorted by start time
-    for pair in sessions.windows(2) {
+    // Sessions with known start times must appear in ascending sort order.
+    // Sessions with unknown starts use `now` as their display start (for duration
+    // ticking) but sort first via MIN_UTC sentinel — so we skip those in the
+    // pairwise display-start comparison.
+    let known_start_sessions: Vec<_> = sessions
+        .iter()
+        .filter(|s| {
+            // A session whose display `.start` equals `now` has an unknown actual start.
+            s.start != now
+        })
+        .collect();
+    for pair in known_start_sessions.windows(2) {
         assert!(
             pair[0].start <= pair[1].start,
-            "sessions must be in ascending start-time order: {:?} > {:?}",
+            "known-start sessions must be in ascending start-time order: {:?} > {:?}",
             pair[0].start,
             pair[1].start
         );
@@ -780,5 +793,372 @@ fn val_data_002_nonexistent_dir_no_panic() {
         snap.warnings.is_empty(),
         "no warnings expected for nonexistent dir; got: {:?}",
         snap.warnings
+    );
+}
+
+// ---------------------------------------------------------------------------
+// VAL-DATA-003 + VAL-WORK-001: Deterministic ordering regression tests
+//
+// These tests verify that derive_worker_sessions produces identical session
+// ordering across two calls with different `now` values, covering:
+//   - Sessions with equal start times (tie-broken by session_id)
+//   - Sessions with unknown start (sentinel ordering, not now-dependent)
+// ---------------------------------------------------------------------------
+
+/// Build a minimal ProgressEvent for use in regression fixtures.
+fn make_event(
+    timestamp: &str,
+    event_type: &str,
+    worker_session_id: &str,
+    feature_id: Option<&str>,
+    success_state: Option<&str>,
+) -> ProgressEvent {
+    ProgressEvent {
+        timestamp: chrono::DateTime::parse_from_rfc3339(timestamp)
+            .unwrap()
+            .with_timezone(&Utc),
+        event_type: event_type.to_string(),
+        worker_session_id: Some(worker_session_id.to_string()),
+        feature_id: feature_id.map(|s| s.to_string()),
+        success_state: success_state.map(|s| s.to_string()),
+        return_to_orchestrator: None,
+        message: None,
+        milestone: None,
+        extra: serde_json::Map::new(),
+    }
+}
+
+#[test]
+fn val_data_003_ordering_stable_across_different_now_values() {
+    // verifies: "VAL-DATA-003: derive_worker_sessions ordering is identical for two different now values"
+    //
+    // Scenario: three sessions
+    //   - "aaaa": started at T1 (known start)
+    //   - "bbbb": started at T1 (same as "aaaa" — tie-break by session_id)
+    //   - "cccc": no worker_started event (unknown start → sentinel ordering)
+    //
+    // Expected order ascending: cccc (MIN_UTC sentinel) < aaaa (T1, lex first) < bbbb (T1, lex second)
+    // With different `now` values the order must remain identical.
+
+    let t1 = "2026-06-01T10:00:00Z";
+    let t1_end = "2026-06-01T11:00:00Z";
+
+    let mut snap = MissionSnapshot::default();
+    snap.progress_events = vec![
+        // "aaaa" starts at T1
+        make_event(t1, "worker_started", "aaaa", Some("feat-a"), None),
+        make_event(
+            t1_end,
+            "worker_completed",
+            "aaaa",
+            Some("feat-a"),
+            Some("success"),
+        ),
+        // "bbbb" also starts at T1 (same timestamp → tied with "aaaa")
+        make_event(t1, "worker_started", "bbbb", Some("feat-b"), None),
+        make_event(
+            t1_end,
+            "worker_completed",
+            "bbbb",
+            Some("feat-b"),
+            Some("success"),
+        ),
+        // "cccc" has NO worker_started event → unknown start (only a completed event)
+        make_event(
+            t1_end,
+            "worker_completed",
+            "cccc",
+            Some("feat-c"),
+            Some("success"),
+        ),
+    ];
+
+    let now1 = chrono::DateTime::parse_from_rfc3339("2026-06-01T12:00:00Z")
+        .unwrap()
+        .with_timezone(&Utc);
+    let now2 = chrono::DateTime::parse_from_rfc3339("2026-06-01T13:00:00Z")
+        .unwrap()
+        .with_timezone(&Utc);
+
+    let sessions1 = derive::derive_worker_sessions(&snap, now1);
+    let sessions2 = derive::derive_worker_sessions(&snap, now2);
+
+    assert_eq!(
+        sessions1.len(),
+        sessions2.len(),
+        "both calls must produce the same number of sessions"
+    );
+
+    // Extract (ordinal, session_id) pairs for comparison
+    let ids1: Vec<(usize, &str)> = sessions1
+        .iter()
+        .map(|s| (s.ordinal, s.session_id.as_str()))
+        .collect();
+    let ids2: Vec<(usize, &str)> = sessions2
+        .iter()
+        .map(|s| (s.ordinal, s.session_id.as_str()))
+        .collect();
+
+    assert_eq!(
+        ids1, ids2,
+        "session ordering (ordinal, session_id) must be identical across different now values;\
+         \n  now1 result: {ids1:?}\n  now2 result: {ids2:?}"
+    );
+}
+
+#[test]
+fn val_data_003_unknown_start_uses_sentinel_not_now() {
+    // verifies: "VAL-DATA-003: sessions with unknown start sort before known-start sessions (sentinel = MIN_UTC)"
+    //
+    // A session with no worker_started event must always sort before any session
+    // that has a real start timestamp, regardless of what `now` is.
+
+    let t_known = "2026-06-01T10:00:00Z";
+    let t_end = "2026-06-01T11:00:00Z";
+
+    let mut snap = MissionSnapshot::default();
+    snap.progress_events = vec![
+        // "known-session": has a worker_started event
+        make_event(
+            t_known,
+            "worker_started",
+            "known-session",
+            Some("feat-a"),
+            None,
+        ),
+        make_event(
+            t_end,
+            "worker_completed",
+            "known-session",
+            Some("feat-a"),
+            Some("success"),
+        ),
+        // "unknown-session": only completed, no started (sentinel sort key)
+        make_event(
+            t_end,
+            "worker_completed",
+            "unknown-session",
+            Some("feat-b"),
+            Some("success"),
+        ),
+    ];
+
+    // Use a `now` value that is far in the future — must NOT affect sort order
+    let now = chrono::DateTime::parse_from_rfc3339("2030-01-01T00:00:00Z")
+        .unwrap()
+        .with_timezone(&Utc);
+
+    let sessions = derive::derive_worker_sessions(&snap, now);
+    assert_eq!(sessions.len(), 2, "expected 2 sessions");
+
+    // unknown-session must come first (ordinal 1) because MIN_UTC < any real timestamp
+    let unknown = sessions
+        .iter()
+        .find(|s| s.session_id == "unknown-session")
+        .expect("unknown-session must be present");
+    let known = sessions
+        .iter()
+        .find(|s| s.session_id == "known-session")
+        .expect("known-session must be present");
+
+    assert_eq!(
+        unknown.ordinal, 1,
+        "unknown-start session must have ordinal 1 (sorts before known-start); got ordinal {}",
+        unknown.ordinal
+    );
+    assert_eq!(
+        known.ordinal, 2,
+        "known-start session must have ordinal 2; got ordinal {}",
+        known.ordinal
+    );
+}
+
+#[test]
+fn val_data_003_equal_start_tie_broken_by_session_id() {
+    // verifies: "VAL-DATA-003: sessions with equal start times are tie-broken deterministically by session_id"
+    //
+    // Two sessions share the exact same start timestamp. The tie-break must be
+    // lexicographic session_id, not HashMap iteration order (which is random).
+
+    let t_start = "2026-06-01T10:00:00Z";
+    let t_end = "2026-06-01T11:00:00Z";
+
+    let mut snap = MissionSnapshot::default();
+    snap.progress_events = vec![
+        make_event(
+            t_start,
+            "worker_started",
+            "zz-last-lex",
+            Some("feat-z"),
+            None,
+        ),
+        make_event(
+            t_end,
+            "worker_completed",
+            "zz-last-lex",
+            Some("feat-z"),
+            Some("success"),
+        ),
+        make_event(
+            t_start,
+            "worker_started",
+            "aa-first-lex",
+            Some("feat-a"),
+            None,
+        ),
+        make_event(
+            t_end,
+            "worker_completed",
+            "aa-first-lex",
+            Some("feat-a"),
+            Some("success"),
+        ),
+    ];
+
+    let now = chrono::DateTime::parse_from_rfc3339("2026-06-01T12:00:00Z")
+        .unwrap()
+        .with_timezone(&Utc);
+
+    // Run many times to expose any non-determinism (HashMap seed changes each run,
+    // but we can also run twice within the same test to check stability).
+    let sessions_a = derive::derive_worker_sessions(&snap, now);
+    let sessions_b = derive::derive_worker_sessions(&snap, now);
+
+    let order_a: Vec<&str> = sessions_a.iter().map(|s| s.session_id.as_str()).collect();
+    let order_b: Vec<&str> = sessions_b.iter().map(|s| s.session_id.as_str()).collect();
+
+    assert_eq!(
+        order_a, order_b,
+        "repeated calls must yield identical order"
+    );
+
+    // The lexicographically smaller id ("aa-first-lex") must come first
+    assert_eq!(
+        sessions_a[0].session_id, "aa-first-lex",
+        "aa-first-lex (lex smaller) must be ordinal 1; order was: {order_a:?}"
+    );
+    assert_eq!(
+        sessions_a[1].session_id, "zz-last-lex",
+        "zz-last-lex (lex larger) must be ordinal 2; order was: {order_a:?}"
+    );
+    assert_eq!(sessions_a[0].ordinal, 1);
+    assert_eq!(sessions_a[1].ordinal, 2);
+}
+
+#[test]
+fn val_work_001_workers_panel_order_stable_across_ticks() {
+    // verifies: "VAL-WORK-001: workers panel rows do not reshuffle between poll ticks (now-independent ordering)"
+    //
+    // This is the primary regression test for the reported HITL bug.
+    // Simulates the scenario that caused visible reshuffling:
+    //   - Two sessions with identical start times (equal sort key before fix)
+    //   - One session with unknown start (used `now` as sort key before fix)
+    // Calls derive_worker_sessions with two different `now` values (simulating two
+    // consecutive poll ticks) and asserts the resulting sequence of session_ids and
+    // ordinals is IDENTICAL.
+
+    let t_start = "2026-06-10T08:00:00Z";
+    let t_end = "2026-06-10T09:00:00Z";
+
+    let mut snap = MissionSnapshot::default();
+    snap.progress_events = vec![
+        // Session "worker-alpha": known start at t_start, still running
+        make_event(
+            t_start,
+            "worker_started",
+            "worker-alpha",
+            Some("feat-alpha"),
+            None,
+        ),
+        // Session "worker-beta": same known start at t_start (tie with alpha)
+        make_event(
+            t_start,
+            "worker_started",
+            "worker-beta",
+            Some("feat-beta"),
+            None,
+        ),
+        make_event(
+            t_end,
+            "worker_completed",
+            "worker-beta",
+            Some("feat-beta"),
+            Some("success"),
+        ),
+        // Session "worker-gamma": NO worker_started (unknown start → was buggy before fix)
+        make_event(
+            t_end,
+            "worker_completed",
+            "worker-gamma",
+            Some("feat-gamma"),
+            Some("partial"),
+        ),
+    ];
+
+    // Tick 1: now is T+0
+    let now_tick1 = chrono::DateTime::parse_from_rfc3339("2026-06-10T10:00:00Z")
+        .unwrap()
+        .with_timezone(&Utc);
+    // Tick 2: now is T+1s (simulates the next poll tick)
+    let now_tick2 = chrono::DateTime::parse_from_rfc3339("2026-06-10T10:00:01Z")
+        .unwrap()
+        .with_timezone(&Utc);
+
+    let tick1 = derive::derive_worker_sessions(&snap, now_tick1);
+    let tick2 = derive::derive_worker_sessions(&snap, now_tick2);
+
+    let seq1: Vec<(usize, &str)> = tick1
+        .iter()
+        .map(|s| (s.ordinal, s.session_id.as_str()))
+        .collect();
+    let seq2: Vec<(usize, &str)> = tick2
+        .iter()
+        .map(|s| (s.ordinal, s.session_id.as_str()))
+        .collect();
+
+    assert_eq!(
+        seq1, seq2,
+        "workers panel row order must be identical on consecutive ticks;\
+         \n  tick1: {seq1:?}\n  tick2: {seq2:?}"
+    );
+
+    // Also assert expected absolute order:
+    // worker-gamma (MIN_UTC sentinel) < worker-alpha (t_start, lex first) < worker-beta (t_start, lex second)
+    let ids: Vec<&str> = tick1.iter().map(|s| s.session_id.as_str()).collect();
+    assert_eq!(
+        ids,
+        vec!["worker-gamma", "worker-alpha", "worker-beta"],
+        "expected order: gamma (sentinel) → alpha (lex before beta) → beta; got: {ids:?}"
+    );
+
+    // Ordinals must be 1-based and match position
+    for (i, ws) in tick1.iter().enumerate() {
+        assert_eq!(
+            ws.ordinal,
+            i + 1,
+            "ordinal mismatch at index {i}: expected {}, got {}",
+            i + 1,
+            ws.ordinal
+        );
+    }
+
+    // The running session (worker-alpha) duration_secs must differ between ticks
+    // (proving `now` still influences duration display, just not sort order).
+    let alpha_t1 = tick1
+        .iter()
+        .find(|s| s.session_id == "worker-alpha")
+        .unwrap()
+        .duration_secs
+        .unwrap();
+    let alpha_t2 = tick2
+        .iter()
+        .find(|s| s.session_id == "worker-alpha")
+        .unwrap()
+        .duration_secs
+        .unwrap();
+    assert_eq!(
+        alpha_t2 - alpha_t1,
+        1,
+        "running session duration should increase by 1s between ticks (now advances by 1s)"
     );
 }
