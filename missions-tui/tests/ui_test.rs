@@ -680,6 +680,62 @@ fn val_dash_001_dashboard_renders_features_list_with_glyphs() {
     );
 }
 
+#[test]
+fn val_dash_001_gauge_label_has_contrast_style() {
+    // verifies: "VAL-DASH-001: gauge label cells carry bold/contrasting style for readability"
+    use ratatui::style::{Color, Modifier};
+
+    let app = app_on_dashboard();
+
+    let mut terminal = make_terminal(120, 10);
+    terminal
+        .draw(|f| ui::draw(f, &app))
+        .expect("draw dashboard");
+
+    let buf = terminal.backend().buffer().clone();
+
+    // The status line is at outer row index 1. The badge occupies cols 0–13;
+    // the gauge starts at col 14. Scan the gauge region for non-space label cells
+    // and assert they carry White fg and/or BOLD modifier — the contrast fix.
+    let row: u16 = 1;
+    let gauge_start: u16 = 14;
+    let gauge_end: u16 = 120;
+
+    // Collect cells that are part of the label text in the gauge region.
+    // The gauge fills background with '█' chars; actual label characters are
+    // alphanumeric or punctuation (e.g. "1/4 features"). Filter to those.
+    let label_cells: Vec<_> = (gauge_start..gauge_end)
+        .filter_map(|col| buf.cell((col, row)))
+        .filter(|c| {
+            let sym = c.symbol();
+            sym != " " && sym != "\u{2588}" // exclude space and '█' fill char
+        })
+        .collect();
+
+    assert!(
+        !label_cells.is_empty(),
+        "expected non-space label cells in the gauge region (row={row}, cols {gauge_start}..{gauge_end})"
+    );
+
+    // Every non-space label cell should have White fg (readable on both Green and Black bg)
+    // and BOLD modifier set.
+    for cell in &label_cells {
+        let style = cell.style();
+        assert!(
+            style.fg == Some(Color::White),
+            "gauge label cell '{}' should have White fg, got: {:?}",
+            cell.symbol(),
+            style.fg
+        );
+        assert!(
+            style.add_modifier.contains(Modifier::BOLD),
+            "gauge label cell '{}' should have BOLD modifier, got: {:?}",
+            cell.symbol(),
+            style.add_modifier
+        );
+    }
+}
+
 // ---------------------------------------------------------------------------
 // VAL-DASH-002: Dashboard with no in_progress feature → "No Active Feature"
 // ---------------------------------------------------------------------------

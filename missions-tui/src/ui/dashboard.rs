@@ -97,11 +97,24 @@ fn render_status_line(f: &mut Frame, area: Rect, summary: &MissionSummary) {
         "{}/{} features",
         summary.completed_features, summary.total_features
     );
+    // Use an explicit bg on gauge_style so the label swap (filled region inverts fg/bg)
+    // gives Black-on-Green. The label Span uses White+Bold so it reads on both the
+    // filled (Green bg) and unfilled (Black bg) regions.
+    let label_span = Span::styled(
+        label,
+        Style::default()
+            .fg(ratatui::style::Color::White)
+            .add_modifier(Modifier::BOLD),
+    );
     let gauge = Gauge::default()
         .block(Block::default().borders(Borders::NONE))
-        .gauge_style(Style::default().fg(ratatui::style::Color::Green))
+        .gauge_style(
+            Style::default()
+                .fg(ratatui::style::Color::Green)
+                .bg(ratatui::style::Color::Black),
+        )
         .ratio(ratio.clamp(0.0, 1.0))
-        .label(label);
+        .label(label_span);
     f.render_widget(gauge, chunks[1]);
 }
 
