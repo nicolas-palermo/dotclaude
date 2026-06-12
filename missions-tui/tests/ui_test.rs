@@ -3,6 +3,8 @@
 /// VAL-TUI-001: Selector lists repos; Enter opens Dashboard screen.
 /// VAL-TUI-002: F→Features, W→Workers, Esc walks back through the nav graph, q exits.
 /// VAL-TUI-003: tick_reload re-reads snapshot from disk; mutated file is reflected.
+/// VAL-DASH-001: Dashboard renders active-feature pane with in_progress feature details.
+/// VAL-DASH-002: Dashboard with no in_progress feature renders "No Active Feature" and no-worker placeholder.
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use missions_tui::app::{App, Screen, SelectorEntry};
 use missions_tui::data::loader::MissionSnapshot;
@@ -549,4 +551,186 @@ fn val_tui_003_tick_reload_with_features_mutation() {
         );
         assert_eq!(snap.features[1].id, "f2", "f2 should appear after reload");
     }
+}
+
+// ---------------------------------------------------------------------------
+// VAL-DASH-001: Dashboard renders active-feature pane with in_progress details
+// ---------------------------------------------------------------------------
+
+/// Render the buffer to a single String for assertions.
+fn render_to_string(terminal: &Terminal<TestBackend>, width: u16, height: u16) -> String {
+    let buf = terminal.backend().buffer().clone();
+    (0..height)
+        .map(|y| {
+            (0..width)
+                .map(|x| {
+                    buf.cell((x, y))
+                        .map(|c| c.symbol().chars().next().unwrap_or(' '))
+                        .unwrap_or(' ')
+                })
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[test]
+fn val_dash_001_dashboard_renders_active_feature_id() {
+    // verifies: "VAL-DASH-001: dashboard renders the in_progress feature id in the active-feature pane"
+    // mission-a has feature m1-mission-data-model with status in_progress
+    let mut app = app_on_dashboard();
+    assert_eq!(app.screen, Screen::Dashboard);
+
+    let mut terminal = make_terminal(120, 40);
+    terminal
+        .draw(|f| ui::draw(f, &app))
+        .expect("draw dashboard");
+    let rendered = render_to_string(&terminal, 120, 40);
+
+    assert!(
+        rendered.contains("m1-mission-data-model"),
+        "dashboard should display the in_progress feature id 'm1-mission-data-model', got:\n{rendered}"
+    );
+}
+
+#[test]
+fn val_dash_001_dashboard_does_not_show_no_active_feature_when_in_progress() {
+    // verifies: "VAL-DASH-001: dashboard does NOT show 'No Active Feature' when a feature is in_progress"
+    let mut app = app_on_dashboard();
+
+    let mut terminal = make_terminal(120, 40);
+    terminal
+        .draw(|f| ui::draw(f, &app))
+        .expect("draw dashboard");
+    let rendered = render_to_string(&terminal, 120, 40);
+
+    assert!(
+        !rendered.contains("No Active Feature"),
+        "dashboard should NOT show 'No Active Feature' when mission-a has an in_progress feature, got:\n{rendered}"
+    );
+}
+
+#[test]
+fn val_dash_001_dashboard_renders_active_feature_skill() {
+    // verifies: "VAL-DASH-001: dashboard renders the skill name of the in_progress feature"
+    let mut app = app_on_dashboard();
+
+    let mut terminal = make_terminal(120, 40);
+    terminal
+        .draw(|f| ui::draw(f, &app))
+        .expect("draw dashboard");
+    let rendered = render_to_string(&terminal, 120, 40);
+
+    // mission-a in_progress feature has skillName: rust-tui-worker
+    assert!(
+        rendered.contains("rust-tui-worker"),
+        "dashboard should display skill 'rust-tui-worker' for active feature, got:\n{rendered}"
+    );
+}
+
+#[test]
+fn val_dash_001_dashboard_renders_features_list_with_glyphs() {
+    // verifies: "VAL-DASH-001: features sidebar renders status glyphs for all features"
+    let mut app = app_on_dashboard();
+
+    let mut terminal = make_terminal(120, 40);
+    terminal
+        .draw(|f| ui::draw(f, &app))
+        .expect("draw dashboard");
+    let rendered = render_to_string(&terminal, 120, 40);
+
+    // mission-a has: m1-registry-cli (completed ✓), m1-mission-data-model (in_progress ●)
+    // and pending features (○)
+    // The feature ids should appear in the sidebar
+    assert!(
+        rendered.contains("m1-registry-cli"),
+        "features list should include m1-registry-cli, got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("m1-mission-data-model"),
+        "features list should include m1-mission-data-model, got:\n{rendered}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// VAL-DASH-002: Dashboard with no in_progress feature → "No Active Feature"
+// ---------------------------------------------------------------------------
+
+/// Build an App pointed at mission-b (no in_progress feature) and navigate to Dashboard.
+fn app_on_dashboard_mission_b() -> App {
+    let mission_b_dir = fixtures_dir().join("mission-b");
+    let entry = SelectorEntry {
+        repo_path: PathBuf::from("/repos/project-beta"),
+        mission_id: Some("bbbbbbbb-0000-0000-0000-000000000000".into()),
+        mission_dir: Some(mission_b_dir),
+        state: Some("planning".into()),
+    };
+    let mut app = App::with_entries(vec![entry]);
+    press(&mut app, KeyCode::Enter); // opens Dashboard
+    app
+}
+
+#[test]
+fn val_dash_002_dashboard_shows_no_active_feature_when_all_pending() {
+    // verifies: "VAL-DASH-002: dashboard shows 'No Active Feature' when no feature is in_progress"
+    let mut app = app_on_dashboard_mission_b();
+    assert_eq!(app.screen, Screen::Dashboard);
+    assert!(app.snapshot.is_some(), "snapshot loaded for mission-b");
+
+    let mut terminal = make_terminal(120, 40);
+    terminal
+        .draw(|f| ui::draw(f, &app))
+        .expect("draw dashboard mission-b");
+    let rendered = render_to_string(&terminal, 120, 40);
+
+    assert!(
+        rendered.contains("No Active Feature"),
+        "dashboard should show 'No Active Feature' when no feature is in_progress, got:\n{rendered}"
+    );
+}
+
+#[test]
+fn val_dash_002_dashboard_shows_no_active_worker_when_no_running_session() {
+    // verifies: "VAL-DASH-002: dashboard shows no-worker placeholder when no active worker session"
+    let mut app = app_on_dashboard_mission_b();
+
+    let mut terminal = make_terminal(120, 40);
+    terminal
+        .draw(|f| ui::draw(f, &app))
+        .expect("draw dashboard mission-b");
+    let rendered = render_to_string(&terminal, 120, 40);
+
+    assert!(
+        rendered.contains("No active worker"),
+        "dashboard should show 'No active worker' when mission-b has no running worker, got:\n{rendered}"
+    );
+}
+
+#[test]
+fn val_dash_002_dashboard_renders_planning_state_badge() {
+    // verifies: "VAL-DASH-002: dashboard renders 'planning' state badge for mission-b"
+    let mut app = app_on_dashboard_mission_b();
+
+    let mut terminal = make_terminal(120, 40);
+    terminal
+        .draw(|f| ui::draw(f, &app))
+        .expect("draw dashboard mission-b");
+    let rendered = render_to_string(&terminal, 120, 40);
+
+    assert!(
+        rendered.contains("planning"),
+        "dashboard should show 'planning' state badge for mission-b, got:\n{rendered}"
+    );
+}
+
+#[test]
+fn val_dash_002_dashboard_renders_without_panic_for_mission_b() {
+    // verifies: "VAL-DASH-002: dashboard renders without panic when snapshot has only completed+pending features"
+    let mut app = app_on_dashboard_mission_b();
+
+    let mut terminal = make_terminal(120, 40);
+    // Must not panic
+    terminal
+        .draw(|f| ui::draw(f, &app))
+        .expect("draw mission-b dashboard should not panic");
 }

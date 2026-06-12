@@ -1,0 +1,30 @@
+{
+  "features": [
+    {
+      "id": "b-feat-1",
+      "description": "First feature — already done",
+      "milestone": "m1-setup",
+      "status": "completed",
+      "skillName": "rust-tui-worker",
+      "fulfills": [],
+      "preconditions": [],
+      "expectedBehavior": [],
+      "workerSessionIds": [],
+      "currentWorkerSessionId": null,
+      "completedWorkerSessionId": null
+    },
+    {
+      "id": "b-feat-2",
+      "description": "Second feature — still pending",
+      "milestone": "m1-setup",
+      "status": "pending",
+      "skillName": "rust-tui-worker",
+      "fulfills": [],
+      "preconditions": ["b-feat-1"],
+      "expectedBehavior": [],
+      "workerSessionIds": [],
+      "currentWorkerSessionId": null,
+      "completedWorkerSessionId": null
+    }
+  ]
+}
