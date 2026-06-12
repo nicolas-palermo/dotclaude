@@ -2,4 +2,5 @@
 pub mod app;
 pub mod data;
 pub mod registry;
+pub mod tui;
 pub mod ui;

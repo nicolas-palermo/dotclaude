@@ -1,4 +1,4 @@
-use missions_tui::registry;
+use missions_tui::{registry, tui};
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -73,9 +73,7 @@ fn main() -> Result<()> {
             }
         }
         None => {
-            // Launch TUI — implemented in m2-tui-shell-dashboard
-            eprintln!("TUI not yet implemented — use `missions-tui repo add|list|remove` for now.");
-            std::process::exit(1);
+            tui::run_app()?;
         }
     }
 
