@@ -734,3 +734,428 @@ fn val_dash_002_dashboard_renders_without_panic_for_mission_b() {
         .draw(|f| ui::draw(f, &app))
         .expect("draw mission-b dashboard should not panic");
 }
+
+// ---------------------------------------------------------------------------
+// Helpers for mission-many fixture (12 features across 4 statuses)
+// ---------------------------------------------------------------------------
+
+fn mission_many_dir() -> PathBuf {
+    fixtures_dir().join("mission-many")
+}
+
+/// Build an App pointed at mission-many and navigate to Features screen.
+/// mission-many has: 12 total, 3 completed, 1 in_progress, 7 pending, 1 cancelled.
+fn app_on_features_many() -> App {
+    let entry = SelectorEntry {
+        repo_path: PathBuf::from("/repos/many"),
+        mission_id: Some("many-features-mission".into()),
+        mission_dir: Some(mission_many_dir()),
+        state: Some("running".into()),
+    };
+    let mut app = App::with_entries(vec![entry]);
+    press(&mut app, KeyCode::Enter); // opens Dashboard, loads snapshot
+    press(&mut app, KeyCode::Char('F')); // navigates to Features
+    app
+}
+
+// ---------------------------------------------------------------------------
+// VAL-FEAT-001: Filter tabs with counts; T cycles filter; rows respect filter
+// ---------------------------------------------------------------------------
+
+#[test]
+fn val_feat_001_filter_tabs_show_counts() {
+    // verifies: "VAL-FEAT-001: filter tab row renders count for each filter label"
+    let app = app_on_features_many();
+    assert_eq!(app.screen, Screen::Features, "should be on Features screen");
+
+    let mut terminal = make_terminal(120, 30);
+    terminal.draw(|f| ui::draw(f, &app)).expect("draw features");
+    let rendered = render_to_string(&terminal, 120, 30);
+
+    assert!(
+        rendered.contains("All (12)"),
+        "tab row should show 'All (12)', got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("Pending (7)"),
+        "tab row should show 'Pending (7)', got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("In Progress (1)"),
+        "tab row should show 'In Progress (1)', got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("Completed (3)"),
+        "tab row should show 'Completed (3)', got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("Cancelled (1)"),
+        "tab row should show 'Cancelled (1)', got:\n{rendered}"
+    );
+}
+
+#[test]
+fn val_feat_001_t_key_cycles_filter() {
+    // verifies: "VAL-FEAT-001: T key cycles the active filter index"
+    let mut app = app_on_features_many();
+
+    // Initially filter is 0 (All)
+    assert_eq!(app.features_filter, 0, "initial filter should be 0 (All)");
+
+    // Press T -> filter 1 (Pending)
+    press(&mut app, KeyCode::Char('T'));
+    assert_eq!(
+        app.features_filter, 1,
+        "T should advance filter to 1 (Pending)"
+    );
+
+    // Press T -> filter 2 (In Progress)
+    press(&mut app, KeyCode::Char('T'));
+    assert_eq!(
+        app.features_filter, 2,
+        "T should advance filter to 2 (In Progress)"
+    );
+
+    // Press T four more times: 3, 4, then wrap to 0
+    press(&mut app, KeyCode::Char('T'));
+    assert_eq!(app.features_filter, 3, "filter should be 3 (Completed)");
+    press(&mut app, KeyCode::Char('T'));
+    assert_eq!(app.features_filter, 4, "filter should be 4 (Cancelled)");
+    press(&mut app, KeyCode::Char('T'));
+    assert_eq!(app.features_filter, 0, "T should wrap back to 0 (All)");
+}
+
+#[test]
+fn val_feat_001_t_resets_selection_and_rows_restricted() {
+    // verifies: "VAL-FEAT-001: T resets list_selected to 0; filtered view shows only matching rows"
+    let mut app = app_on_features_many();
+
+    // Select item 5 in All filter, then cycle to Pending
+    for _ in 0..5 {
+        press(&mut app, KeyCode::Down);
+    }
+    assert_eq!(app.list_selected, 5);
+
+    // T should reset selection
+    press(&mut app, KeyCode::Char('T')); // now Pending (filter index 1)
+    assert_eq!(app.list_selected, 0, "T should reset list_selected to 0");
+    assert_eq!(app.features_filter, 1);
+
+    // Render and verify only pending rows are visible
+    let mut terminal = make_terminal(120, 30);
+    terminal
+        .draw(|f| ui::draw(f, &app))
+        .expect("draw features pending filter");
+    let rendered = render_to_string(&terminal, 120, 30);
+
+    // Pending rows should appear
+    assert!(
+        rendered.contains("m2-feature-epsilon"),
+        "Pending filter should show m2-feature-epsilon, got:\n{rendered}"
+    );
+    // In-progress feature should NOT appear in the list rows
+    assert!(
+        !rendered.contains("m2-feature-delta"),
+        "Pending filter should NOT show m2-feature-delta (in_progress), got:\n{rendered}"
+    );
+    // Completed features should NOT appear
+    assert!(
+        !rendered.contains("m1-feature-alpha"),
+        "Pending filter should NOT show m1-feature-alpha (completed), got:\n{rendered}"
+    );
+}
+
+#[test]
+fn val_feat_001_initial_filter_shows_all_features() {
+    // verifies: "VAL-FEAT-001: default filter (All) shows features from all statuses"
+    let app = app_on_features_many();
+
+    let mut terminal = make_terminal(120, 30);
+    terminal
+        .draw(|f| ui::draw(f, &app))
+        .expect("draw features all filter");
+    let rendered = render_to_string(&terminal, 120, 30);
+
+    // The first completed feature should appear in the All filter
+    assert!(
+        rendered.contains("m1-feature-alpha"),
+        "All filter should show m1-feature-alpha (completed), got:\n{rendered}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// VAL-FEAT-002: Navigation -- arrows, g, G, scroll indicator
+// ---------------------------------------------------------------------------
+
+#[test]
+fn val_feat_002_down_increments_selection() {
+    // verifies: "VAL-FEAT-002: Down key increments list_selected"
+    let mut app = app_on_features_many();
+    assert_eq!(app.list_selected, 0);
+
+    press(&mut app, KeyCode::Down);
+    assert_eq!(
+        app.list_selected, 1,
+        "Down should increment list_selected to 1"
+    );
+
+    press(&mut app, KeyCode::Down);
+    assert_eq!(
+        app.list_selected, 2,
+        "Down should increment list_selected to 2"
+    );
+}
+
+#[test]
+fn val_feat_002_up_decrements_selection() {
+    // verifies: "VAL-FEAT-002: Up key decrements list_selected; clamped at 0"
+    let mut app = app_on_features_many();
+
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Down);
+    assert_eq!(app.list_selected, 2);
+
+    press(&mut app, KeyCode::Up);
+    assert_eq!(app.list_selected, 1, "Up should decrement to 1");
+
+    press(&mut app, KeyCode::Up);
+    assert_eq!(app.list_selected, 0, "Up should decrement to 0");
+
+    press(&mut app, KeyCode::Up);
+    assert_eq!(app.list_selected, 0, "Up at 0 should stay at 0 (clamp)");
+}
+
+#[test]
+fn val_feat_002_down_clamped_at_last() {
+    // verifies: "VAL-FEAT-002: Down clamped at last feature index"
+    let mut app = app_on_features_many();
+
+    // Hammer down 20 times (more than 12 features)
+    for _ in 0..20 {
+        press(&mut app, KeyCode::Down);
+    }
+    // 12 features -> max index is 11
+    assert_eq!(
+        app.list_selected, 11,
+        "Down should clamp at index 11 (12 features total)"
+    );
+}
+
+#[test]
+fn val_feat_002_g_jumps_to_top() {
+    // verifies: "VAL-FEAT-002: g resets list_selected to 0"
+    let mut app = app_on_features_many();
+
+    for _ in 0..3 {
+        press(&mut app, KeyCode::Down);
+    }
+    assert_eq!(app.list_selected, 3);
+
+    press(&mut app, KeyCode::Char('g'));
+    assert_eq!(app.list_selected, 0, "g should jump to top (index 0)");
+    assert_eq!(app.scroll_offset, 0, "g should reset scroll_offset to 0");
+}
+
+#[test]
+fn val_feat_002_shift_g_jumps_to_bottom() {
+    // verifies: "VAL-FEAT-002: G sets list_selected to last feature index"
+    let mut app = app_on_features_many();
+    assert_eq!(app.list_selected, 0);
+
+    press(&mut app, KeyCode::Char('G'));
+    // 12 features -> last index is 11
+    assert_eq!(
+        app.list_selected, 11,
+        "G should jump to last feature (index 11)"
+    );
+}
+
+#[test]
+fn val_feat_002_scroll_indicator_shows_range() {
+    // verifies: "VAL-FEAT-002: scroll indicator renders 'showing X--Y of N' with en-dash"
+    let app = app_on_features_many();
+
+    // Use a short terminal to force scroll
+    let mut terminal = make_terminal(80, 15);
+    terminal
+        .draw(|f| ui::draw(f, &app))
+        .expect("draw features short terminal");
+    let rendered = render_to_string(&terminal, 80, 15);
+
+    // Scroll indicator should show a range (en-dash U+2013, not hyphen)
+    assert!(
+        rendered.contains("showing 1"),
+        "scroll indicator should start with 'showing 1', got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("of 12"),
+        "scroll indicator should end with 'of 12', got:\n{rendered}"
+    );
+    // Verify en-dash is present (not a hyphen)
+    assert!(
+        rendered.contains('\u{2013}'),
+        "scroll indicator should use en-dash (\u{2013}), got:\n{rendered}"
+    );
+}
+
+#[test]
+fn val_feat_002_scroll_indicator_full_view() {
+    // verifies: "VAL-FEAT-002: scroll indicator shows all features visible when terminal is tall"
+    let app = app_on_features_many();
+
+    // Large terminal -- all 12 fit
+    let mut terminal = make_terminal(120, 40);
+    terminal
+        .draw(|f| ui::draw(f, &app))
+        .expect("draw features large terminal");
+    let rendered = render_to_string(&terminal, 120, 40);
+
+    assert!(
+        rendered.contains("showing 1"),
+        "scroll indicator should start at 1, got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("of 12"),
+        "scroll indicator total should be 12, got:\n{rendered}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// VAL-FEAT-003: Enter opens FeatureDetail; detail renders fields; Esc returns
+// ---------------------------------------------------------------------------
+
+#[test]
+fn val_feat_003_enter_opens_feature_detail() {
+    // verifies: "VAL-FEAT-003: Enter on selected feature opens Screen::FeatureDetail"
+    let mut app = app_on_features_many();
+    assert_eq!(app.screen, Screen::Features);
+    assert_eq!(app.list_selected, 0);
+
+    press(&mut app, KeyCode::Enter);
+
+    // First feature in All filter order is m1-feature-alpha
+    assert_eq!(
+        app.screen,
+        Screen::FeatureDetail("m1-feature-alpha".into()),
+        "Enter should open FeatureDetail for m1-feature-alpha"
+    );
+}
+
+#[test]
+fn val_feat_003_detail_renders_feature_id_and_milestone() {
+    // verifies: "VAL-FEAT-003: feature detail renders feature id and milestone"
+    let mut app = app_on_features_many();
+    press(&mut app, KeyCode::Enter); // open detail for m1-feature-alpha
+
+    assert!(
+        matches!(&app.screen, Screen::FeatureDetail(id) if id == "m1-feature-alpha"),
+        "should be on m1-feature-alpha detail"
+    );
+
+    let mut terminal = make_terminal(120, 40);
+    terminal
+        .draw(|f| ui::draw(f, &app))
+        .expect("draw feature detail");
+    let rendered = render_to_string(&terminal, 120, 40);
+
+    assert!(
+        rendered.contains("Feature: m1-feature-alpha"),
+        "detail header should show 'Feature: m1-feature-alpha', got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("Milestone: m1-first"),
+        "detail should show 'Milestone: m1-first', got:\n{rendered}"
+    );
+}
+
+#[test]
+fn val_feat_003_detail_renders_description() {
+    // verifies: "VAL-FEAT-003: feature detail renders description text"
+    let mut app = app_on_features_many();
+    press(&mut app, KeyCode::Enter);
+
+    let mut terminal = make_terminal(120, 40);
+    terminal
+        .draw(|f| ui::draw(f, &app))
+        .expect("draw feature detail");
+    let rendered = render_to_string(&terminal, 120, 40);
+
+    assert!(
+        rendered.contains("Alpha feature description"),
+        "detail should render description 'Alpha feature description', got:\n{rendered}"
+    );
+}
+
+#[test]
+fn val_feat_003_detail_renders_preconditions() {
+    // verifies: "VAL-FEAT-003: feature detail renders preconditions as bullet list"
+    let mut app = app_on_features_many();
+    press(&mut app, KeyCode::Enter);
+
+    let mut terminal = make_terminal(120, 40);
+    terminal
+        .draw(|f| ui::draw(f, &app))
+        .expect("draw feature detail");
+    let rendered = render_to_string(&terminal, 120, 40);
+
+    assert!(
+        rendered.contains("Alpha precondition one"),
+        "detail should render precondition 'Alpha precondition one', got:\n{rendered}"
+    );
+}
+
+#[test]
+fn val_feat_003_detail_renders_expected_behavior() {
+    // verifies: "VAL-FEAT-003: feature detail renders expected behavior as bullet list"
+    let mut app = app_on_features_many();
+    press(&mut app, KeyCode::Enter);
+
+    let mut terminal = make_terminal(120, 40);
+    terminal
+        .draw(|f| ui::draw(f, &app))
+        .expect("draw feature detail");
+    let rendered = render_to_string(&terminal, 120, 40);
+
+    assert!(
+        rendered.contains("Alpha behaves correctly"),
+        "detail should render expected behavior 'Alpha behaves correctly', got:\n{rendered}"
+    );
+}
+
+#[test]
+fn val_feat_003_esc_from_detail_returns_to_features() {
+    // verifies: "VAL-FEAT-003: Esc from FeatureDetail returns to Screen::Features"
+    let mut app = app_on_features_many();
+    press(&mut app, KeyCode::Enter); // -> FeatureDetail
+
+    assert!(
+        matches!(&app.screen, Screen::FeatureDetail(_)),
+        "should be on FeatureDetail"
+    );
+
+    press(&mut app, KeyCode::Esc);
+    assert_eq!(
+        app.screen,
+        Screen::Features,
+        "Esc from FeatureDetail should return to Screen::Features"
+    );
+}
+
+#[test]
+fn val_feat_003_detail_renders_worker_sessions() {
+    // verifies: "VAL-FEAT-003: feature detail renders worker session ids with status"
+    let mut app = app_on_features_many();
+    press(&mut app, KeyCode::Enter); // -> m1-feature-alpha detail
+
+    let mut terminal = make_terminal(120, 40);
+    terminal
+        .draw(|f| ui::draw(f, &app))
+        .expect("draw feature detail");
+    let rendered = render_to_string(&terminal, 120, 40);
+
+    // m1-feature-alpha has workerSessionIds: ["aaa00001"]
+    assert!(
+        rendered.contains("aaa00001"),
+        "detail should render worker session id 'aaa00001', got:\n{rendered}"
+    );
+}

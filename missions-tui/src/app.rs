@@ -1,4 +1,5 @@
 use crate::data::loader::MissionSnapshot;
+use crate::data::model::Feature;
 use crate::registry::{self, RepoEntry};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::path::PathBuf;
@@ -47,6 +48,10 @@ impl SelectorEntry {
     }
 }
 
+/// Filter index for the features panel.
+/// 0=All, 1=Pending, 2=InProgress, 3=Completed, 4=Cancelled
+pub const FEATURES_FILTER_COUNT: usize = 5;
+
 /// Application state. Free of all rendering and IO concerns.
 pub struct App {
     /// Current screen.
@@ -65,6 +70,8 @@ pub struct App {
     pub list_selected: usize,
     /// Scroll offset for long views.
     pub scroll_offset: usize,
+    /// Active filter tab in the features panel (0=All, 1=Pending, 2=InProgress, 3=Completed, 4=Cancelled).
+    pub features_filter: usize,
 }
 
 impl App {
@@ -83,6 +90,7 @@ impl App {
             should_quit: false,
             list_selected: 0,
             scroll_offset: 0,
+            features_filter: 0,
         }
     }
 
@@ -97,6 +105,7 @@ impl App {
             should_quit: false,
             list_selected: 0,
             scroll_offset: 0,
+            features_filter: 0,
         }
     }
 
@@ -205,9 +214,10 @@ impl App {
                         self.open_dashboard();
                     }
                     Screen::Features => {
-                        // Open feature detail for the selected feature, if a snapshot is present.
+                        // Open feature detail for the selected feature in the filtered list.
                         if let Some(snap) = &self.snapshot {
-                            if let Some(feature) = snap.features.get(self.list_selected) {
+                            let filtered = filter_features(&snap.features, self.features_filter);
+                            if let Some(feature) = filtered.get(self.list_selected) {
                                 let id = feature.id.clone();
                                 self.screen = Screen::FeatureDetail(id);
                             }
@@ -247,7 +257,8 @@ impl App {
                     }
                     Screen::Features => {
                         if let Some(snap) = &self.snapshot {
-                            let max = snap.features.len().saturating_sub(1);
+                            let filtered = filter_features(&snap.features, self.features_filter);
+                            let max = filtered.len().saturating_sub(1);
                             if self.list_selected < max {
                                 self.list_selected += 1;
                             }
@@ -273,13 +284,46 @@ impl App {
             KeyCode::Char('G') => {
                 if let Some(snap) = &self.snapshot {
                     if self.screen == Screen::Features {
-                        self.list_selected = snap.features.len().saturating_sub(1);
+                        let filtered = filter_features(&snap.features, self.features_filter);
+                        self.list_selected = filtered.len().saturating_sub(1);
                     }
+                }
+                true
+            }
+
+            // T — cycle the active filter tab in the features panel
+            KeyCode::Char('T') => {
+                if self.screen == Screen::Features {
+                    self.features_filter = (self.features_filter + 1) % FEATURES_FILTER_COUNT;
+                    self.list_selected = 0;
+                    self.scroll_offset = 0;
                 }
                 true
             }
 
             _ => false,
         }
+    }
+}
+
+/// Filter tab labels for the features panel.
+pub const FILTER_LABELS: [&str; FEATURES_FILTER_COUNT] =
+    ["All", "Pending", "In Progress", "Completed", "Cancelled"];
+
+/// Filter tab status strings (None = All).
+pub const FILTER_STATUSES: [Option<&str>; FEATURES_FILTER_COUNT] = [
+    None,
+    Some("pending"),
+    Some("in_progress"),
+    Some("completed"),
+    Some("cancelled"),
+];
+
+/// Return the subset of features matching the given filter index.
+/// filter 0 = All (no filtering).
+pub fn filter_features(features: &[Feature], filter: usize) -> Vec<&Feature> {
+    match FILTER_STATUSES.get(filter).copied().flatten() {
+        None => features.iter().collect(),
+        Some(status) => features.iter().filter(|f| f.status == status).collect(),
     }
 }
