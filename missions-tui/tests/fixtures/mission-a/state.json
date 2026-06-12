@@ -1,0 +1,9 @@
+{
+  "missionId": "99038ad5-abbe-4534-9e5a-d14ece4274e6",
+  "state": "running",
+  "workingDirectory": "/Users/galina/orca/workspaces/dotclaude/missions-tui",
+  "createdAt": "2026-06-11T23:21:33Z",
+  "updatedAt": "2026-06-12T01:05:00Z",
+  "currentMilestone": "m1-data-layer",
+  "lastReviewedHandoffCount": 1
+}

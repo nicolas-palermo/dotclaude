@@ -1,0 +1,5 @@
+{"timestamp":"2026-06-11T23:21:33Z","type":"mission_accepted"}
+NOT VALID JSON AT ALL }{
+{"timestamp":"2026-06-11T23:22:00Z","type":"mission_run_started","message":"valid line after corrupt one"}
+{"timestamp": TRUNCATED
+{"timestamp":"2026-06-12T00:01:00Z","type":"worker_started","workerSessionId":"cccccccc-0000-0000-0000-000000000001","featureId":"m1-dummy"}
