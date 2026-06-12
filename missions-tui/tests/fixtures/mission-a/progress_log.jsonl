@@ -1,0 +1,10 @@
+{"timestamp":"2026-06-11T23:21:33Z","type":"mission_accepted"}
+{"timestamp":"2026-06-11T23:22:00Z","type":"mission_run_started","message":"Orchestrator starting mission"}
+{"timestamp":"2026-06-11T23:22:10Z","type":"worker_selected_feature","workerSessionId":"77658ccc-e4f3-4b4d-b734-b75e99c7236c","featureId":"m1-registry-cli"}
+{"timestamp":"2026-06-11T23:22:15Z","type":"worker_started","workerSessionId":"77658ccc-e4f3-4b4d-b734-b75e99c7236c","featureId":"m1-registry-cli"}
+{"timestamp":"2026-06-12T00:15:00Z","type":"worker_completed","workerSessionId":"77658ccc-e4f3-4b4d-b734-b75e99c7236c","featureId":"m1-registry-cli","successState":"success"}
+{"timestamp":"2026-06-12T00:15:30Z","type":"mission_run_started","message":"m1-registry-cli done. Starting m1-mission-data-model."}
+{"timestamp":"2026-06-12T00:15:45Z","type":"worker_selected_feature","workerSessionId":"8bf19191-54bc-4fef-a079-53b33706cf7b","featureId":"m1-mission-data-model"}
+{"timestamp":"2026-06-12T00:16:00Z","type":"worker_started","workerSessionId":"8bf19191-54bc-4fef-a079-53b33706cf7b","featureId":"m1-mission-data-model"}
+{"timestamp":"2026-06-11T22:00:00Z","type":"worker_started","workerSessionId":"deadbeef-0000-0000-0000-000000000001","featureId":"m1-registry-cli"}
+{"timestamp":"2026-06-11T22:30:00Z","type":"worker_failed","workerSessionId":"deadbeef-0000-0000-0000-000000000001","featureId":"m1-registry-cli","successState":"failure"}

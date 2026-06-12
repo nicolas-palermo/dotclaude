@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-06-11T23:10:00Z",
+  "workerSessionId": "aaaaaaaa-0000-0000-0000-000000000001",
+  "featureId": "m0-scaffold",
+  "milestone": "m0-setup",
+  "successState": "success",
+  "returnToOrchestrator": false,
+  "commitId": "abc1234",
+  "handoff": {
+    "salientSummary": "Scaffold created",
+    "whatWasImplemented": "Initial project setup",
+    "whatWasLeftUndone": "Nothing",
+    "verification": { "commandsRun": [] },
+    "tests": { "added": [], "coverage": "n/a" },
+    "discoveredIssues": []
+  }
+}

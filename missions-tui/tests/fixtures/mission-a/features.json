@@ -1,0 +1,73 @@
+{
+  "features": [
+    {
+      "id": "m1-registry-cli",
+      "description": "Cargo scaffold + repo registry CLI (repo add/list/remove)",
+      "milestone": "m1-data-layer",
+      "status": "completed",
+      "skillName": "rust-tui-worker",
+      "fulfills": ["VAL-REG-001", "VAL-REG-002", "VAL-REG-003"],
+      "preconditions": ["None (first feature)"],
+      "expectedBehavior": [
+        "repo add persists and dedupes",
+        "repo list prints repos with discovered active mission",
+        "repo remove deletes the entry",
+        "cargo build + cargo test green"
+      ],
+      "workerSessionIds": ["77658ccc-e4f3-4b4d-b734-b75e99c7236c"],
+      "currentWorkerSessionId": null,
+      "completedWorkerSessionId": "77658ccc-e4f3-4b4d-b734-b75e99c7236c"
+    },
+    {
+      "id": "m1-mission-data-model",
+      "description": "Mission data model + lenient loaders in src/data/",
+      "milestone": "m1-data-layer",
+      "status": "in_progress",
+      "skillName": "rust-tui-worker",
+      "fulfills": ["VAL-DATA-001", "VAL-DATA-002"],
+      "preconditions": ["m1-registry-cli landed in commit 581515d"],
+      "expectedBehavior": [
+        "MissionSnapshot::load parses state.json, features.json, progress_log.jsonl and handoffs/*.json into typed models",
+        "Missing or corrupt files yield empty defaults + collected warnings, never a panic",
+        "Realistic fixtures parse with correct field values"
+      ],
+      "workerSessionIds": ["8bf19191-54bc-4fef-a079-53b33706cf7b"],
+      "currentWorkerSessionId": "8bf19191-54bc-4fef-a079-53b33706cf7b",
+      "completedWorkerSessionId": null
+    },
+    {
+      "id": "m1-derived-views",
+      "description": "Derived views: MissionSummary + WorkerSession list in src/data/derive.rs",
+      "milestone": "m1-data-layer",
+      "status": "pending",
+      "skillName": "rust-tui-worker",
+      "fulfills": ["VAL-DATA-003", "VAL-DATA-004"],
+      "preconditions": ["m1-mission-data-model"],
+      "expectedBehavior": [
+        "MissionSummary.completed/total counts match fixture",
+        "WorkerSession list includes still-running worker with live duration",
+        "Handoff successState overrides progress-event successState"
+      ],
+      "workerSessionIds": [],
+      "currentWorkerSessionId": null,
+      "completedWorkerSessionId": null
+    },
+    {
+      "id": "m2-tui-shell-dashboard",
+      "description": "Terminal lifecycle + app shell + main dashboard screen",
+      "milestone": "m2-tui-shell-dashboard",
+      "status": "pending",
+      "skillName": "rust-tui-worker",
+      "fulfills": ["VAL-TUI-001", "VAL-TUI-002", "VAL-TUI-003", "VAL-DASH-001", "VAL-DASH-002"],
+      "preconditions": ["m1-derived-views"],
+      "expectedBehavior": [
+        "Raw mode + alternate screen on entry; restored on exit and in panic hook",
+        "Selector screen lists registered repos with active mission state",
+        "Dashboard renders header, state badge, progress gauge, features list, progress log"
+      ],
+      "workerSessionIds": [],
+      "currentWorkerSessionId": null,
+      "completedWorkerSessionId": null
+    }
+  ]
+}

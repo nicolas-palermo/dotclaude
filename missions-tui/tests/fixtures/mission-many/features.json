@@ -1,0 +1,136 @@
+{
+  "features": [
+    {
+      "id": "m1-feature-alpha",
+      "description": "Alpha feature description with preconditions",
+      "milestone": "m1-first",
+      "status": "completed",
+      "fulfills": ["VAL-ALPHA-001"],
+      "preconditions": ["Alpha precondition one"],
+      "expectedBehavior": ["Alpha behaves correctly"],
+      "workerSessionIds": ["aaa00001"],
+      "completedWorkerSessionId": "aaa00001"
+    },
+    {
+      "id": "m1-feature-beta",
+      "description": "Beta feature description",
+      "milestone": "m1-first",
+      "status": "completed",
+      "fulfills": ["VAL-BETA-001"],
+      "preconditions": [],
+      "expectedBehavior": ["Beta completes its task"],
+      "workerSessionIds": ["bbb00002"],
+      "completedWorkerSessionId": "bbb00002"
+    },
+    {
+      "id": "m1-feature-gamma",
+      "description": "Gamma feature — partial failure then retry",
+      "milestone": "m1-first",
+      "status": "completed",
+      "fulfills": ["VAL-GAMMA-001"],
+      "preconditions": ["Gamma precondition"],
+      "expectedBehavior": ["Gamma succeeds after retry"],
+      "workerSessionIds": ["ccc00003", "ccc00004"],
+      "completedWorkerSessionId": "ccc00004"
+    },
+    {
+      "id": "m2-feature-delta",
+      "description": "Delta is currently in progress",
+      "milestone": "m2-stuff",
+      "status": "in_progress",
+      "fulfills": ["VAL-DELTA-001"],
+      "preconditions": ["Delta precondition"],
+      "expectedBehavior": ["Delta renders the UI correctly"],
+      "workerSessionIds": ["ddd00005"],
+      "currentWorkerSessionId": "ddd00005"
+    },
+    {
+      "id": "m2-feature-epsilon",
+      "description": "Epsilon pending behind delta",
+      "milestone": "m2-stuff",
+      "status": "pending",
+      "fulfills": ["VAL-EPS-001"],
+      "preconditions": ["m2-feature-delta must be completed"],
+      "expectedBehavior": ["Epsilon adds pagination"],
+      "workerSessionIds": [],
+      "currentWorkerSessionId": null
+    },
+    {
+      "id": "m2-feature-zeta",
+      "description": "Zeta is another pending item",
+      "milestone": "m2-stuff",
+      "status": "pending",
+      "fulfills": ["VAL-ZETA-001"],
+      "preconditions": [],
+      "expectedBehavior": ["Zeta adds search"],
+      "workerSessionIds": [],
+      "currentWorkerSessionId": null
+    },
+    {
+      "id": "m2-feature-eta",
+      "description": "Eta — pending work on exports",
+      "milestone": "m2-stuff",
+      "status": "pending",
+      "fulfills": ["VAL-ETA-001"],
+      "preconditions": [],
+      "expectedBehavior": ["Eta exports CSV"],
+      "workerSessionIds": [],
+      "currentWorkerSessionId": null
+    },
+    {
+      "id": "m3-feature-theta",
+      "description": "Theta — pending future milestone",
+      "milestone": "m3-future",
+      "status": "pending",
+      "fulfills": ["VAL-THETA-001"],
+      "preconditions": ["m2 must be complete"],
+      "expectedBehavior": ["Theta provides advanced features"],
+      "workerSessionIds": [],
+      "currentWorkerSessionId": null
+    },
+    {
+      "id": "m3-feature-iota",
+      "description": "Iota — pending analytics",
+      "milestone": "m3-future",
+      "status": "pending",
+      "fulfills": ["VAL-IOTA-001"],
+      "preconditions": [],
+      "expectedBehavior": ["Iota tracks events"],
+      "workerSessionIds": [],
+      "currentWorkerSessionId": null
+    },
+    {
+      "id": "m3-feature-kappa",
+      "description": "Kappa — pending notifications",
+      "milestone": "m3-future",
+      "status": "pending",
+      "fulfills": ["VAL-KAPPA-001"],
+      "preconditions": [],
+      "expectedBehavior": ["Kappa sends notifications"],
+      "workerSessionIds": [],
+      "currentWorkerSessionId": null
+    },
+    {
+      "id": "m3-feature-lambda",
+      "description": "Lambda — pending webhooks",
+      "milestone": "m3-future",
+      "status": "pending",
+      "fulfills": ["VAL-LAMBDA-001"],
+      "preconditions": [],
+      "expectedBehavior": ["Lambda dispatches webhooks"],
+      "workerSessionIds": [],
+      "currentWorkerSessionId": null
+    },
+    {
+      "id": "m4-feature-mu",
+      "description": "Mu — cancelled after scope change",
+      "milestone": "m4-deprecated",
+      "status": "cancelled",
+      "fulfills": [],
+      "preconditions": [],
+      "expectedBehavior": [],
+      "workerSessionIds": [],
+      "currentWorkerSessionId": null
+    }
+  ]
+}
